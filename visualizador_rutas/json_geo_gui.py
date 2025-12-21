@@ -24,7 +24,7 @@ class JsonGeoTool:
         self.btn_frame = tk.Frame(root, pady=5)
         self.btn_frame.pack(fill=tk.X)
         self.convert_btn = tk.Button(self.btn_frame, text="Process & Format", command=self.process_json, 
-                                     bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), padx=20)
+                                     bg="#4CAF50", fg="black", font=("Arial", 10, "bold"), padx=20)
         self.convert_btn.pack()
 
         # 2. Pretty JSON Section
