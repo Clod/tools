@@ -409,7 +409,6 @@
         "type": "IN_TRANSPORT",
         "distance": 1176,
         "transportMode": "WALKING",
-        "transportTags": {},
         "startTime": "2025-12-20T10:00:47.013-0300",
         "endTime": "2025-12-20T10:17:53.013-0300"
       }
@@ -1406,7 +1405,6 @@
         "type": "IN_TRANSPORT",
         "distance": 10694,
         "transportMode": "BUS",
-        "transportTags": {},
         "startTime": "2025-12-20T09:20:53.013-0300",
         "endTime": "2025-12-20T10:00:47.013-0300"
       }
@@ -1695,7 +1693,6 @@
         "type": "IN_TRANSPORT",
         "distance": 928,
         "transportMode": "WALKING",
-        "transportTags": {},
         "startTime": "2025-12-20T09:09:11.013-0300",
         "endTime": "2025-12-20T09:20:53.013-0300"
       }

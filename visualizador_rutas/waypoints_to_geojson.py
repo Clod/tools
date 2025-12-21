@@ -1,18 +1,38 @@
 #!/usr/bin/env python3
+"""
+Waypoints to GeoJSON Converter
+
+This script processes JSON files containing Sentiance event data and converts them into
+GeoJSON format for easier visualization in geographic information systems (GIS) or web maps.
+
+Key Features:
+- Supports multiple Sentiance JSON structures:
+    1. Standard export containing a 'userContext' object with an 'events' list.
+    2. Single transport event objects (e.g., 'viaje.json' structure).
+    3. Root objects directly containing 'waypoints'.
+- Extracts 'LineString' geometries from sequences of waypoints.
+- Preserves event metadata as GeoJSON properties:
+    - Transport mode and tags
+    - Distance and timestamps
+    - Event index for tracking
+- Generates a GeoJSON 'FeatureCollection' suitable for tools like geojson.io, QGIS, or Mapbox.
+
+Usage:
+    python waypoints_to_geojson.py <input_json> <output_geojson>
+"""
 import json
 import sys
 from pathlib import Path
 
 def extract_waypoints_to_geojson(input_path, output_path):
     # Load input JSON
-    with open(input_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        try:
+    try:
+        with open(input_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"Error: Failed to parse JSON file '{input_path}'.")
-            print(f"Details: {e}")
-            sys.exit(1)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error: Failed to process file '{input_path}'.")
+        print(f"Details: {e}")
+        sys.exit(1)
 
     events = data.get("userContext", {}).get("events", [])
     # Determine where the events/waypoints are located
