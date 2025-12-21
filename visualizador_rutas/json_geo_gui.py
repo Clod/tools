@@ -19,14 +19,15 @@ class JsonGeoTool:
         self.input_frame = tk.LabelFrame(self.paned, text="1. Paste JSON Register Here", padx=5, pady=5)
         self.input_text = scrolledtext.ScrolledText(self.input_frame, height=10, undo=True)
         self.input_text.pack(fill=tk.BOTH, expand=True)
-        self.paned.add(self.input_frame)
-
-        # Button Section (between input and output)
-        self.btn_frame = tk.Frame(root, pady=5)
+        
+        # Process Button (inside input frame for proximity)
+        self.btn_frame = tk.Frame(self.input_frame, pady=5)
         self.btn_frame.pack(fill=tk.X)
-        self.convert_btn = tk.Button(self.btn_frame, text="Process & Format", command=self.process_json, 
-                                     bg="#4CAF50", fg="black", font=("Arial", 10, "bold"), padx=20)
-        self.convert_btn.pack()
+        self.convert_btn = tk.Button(self.btn_frame, text="⚡ Process & Format", command=self.process_json, 
+                                     bg="#00FF00", fg="black", font=("Arial", 10, "bold"), padx=20)
+        self.convert_btn.pack(side=tk.RIGHT)
+        
+        self.paned.add(self.input_frame)
 
         # 2. Pretty JSON Section
         self.pretty_frame = tk.LabelFrame(self.paned, text="2. Formatted JSON", padx=5, pady=5)
@@ -144,13 +145,37 @@ class MapWindow(tk.Toplevel):
                 path_coords = [(lat, lon) for lon, lat in coords]
                 if path_coords:
                     # Color based on transport mode if available
-                    color = self.get_color_by_mode(props.get("transportMode"))
-                    self.map_widget.set_path(path_coords, color=color, width=3)
+                    self.map_widget.set_path(path_coords, color="#00FF00", width=4)
                     all_coords.extend(path_coords)
                     
-                    # Add marker at start and end
-                    self.map_widget.set_marker(path_coords[0][0], path_coords[0][1], text=f"Start: {props.get('type','?')}")
-                    self.map_widget.set_marker(path_coords[-1][0], path_coords[-1][1], text=f"End: {props.get('type','?')}")
+                    # Create small dot icons using PIL for a cleaner look
+                    try:
+                        from PIL import Image, ImageTk
+                        # Create 10x10 dots
+                        start_dot = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+                        end_dot = Image.new("RGBA", (10, 10), (0, 0, 0, 0))
+                        
+                        from PIL import ImageDraw
+                        # Start (White with Green border)
+                        draw_s = ImageDraw.Draw(start_dot)
+                        draw_s.ellipse((1, 1, 8, 8), fill="#FFFFFF", outline="#00FF00", width=2)
+                        # End (Green with Black border)
+                        draw_e = ImageDraw.Draw(end_dot)
+                        draw_e.ellipse((1, 1, 8, 8), fill="#00FF00", outline="#000000", width=1)
+                        
+                        start_icon = ImageTk.PhotoImage(start_dot)
+                        end_icon = ImageTk.PhotoImage(end_dot)
+                        
+                        # Keep references to avoid garbage collection
+                        if not hasattr(self, "_marker_icons"): self._marker_icons = []
+                        self._marker_icons.extend([start_icon, end_icon])
+
+                        self.map_widget.set_marker(path_coords[0][0], path_coords[0][1], text="Start", icon=start_icon)
+                        self.map_widget.set_marker(path_coords[-1][0], path_coords[-1][1], text="End", icon=end_icon)
+                    except Exception:
+                        # Fallback to standard icons if PIL fails
+                        self.map_widget.set_marker(path_coords[0][0], path_coords[0][1], text="Start")
+                        self.map_widget.set_marker(path_coords[-1][0], path_coords[-1][1], text="End")
         
         if all_coords:
             # Set map position to focus on the data
@@ -166,15 +191,8 @@ class MapWindow(tk.Toplevel):
             self.map_widget.set_zoom(14)
 
     def get_color_by_mode(self, mode):
-        colors = {
-            "bus": "#FF5722",
-            "car": "#2196F3",
-            "walking": "#4CAF50",
-            "train": "#9C27B0",
-            "cycling": "#FFEB3B",
-            "stationary": "#9E9E9E"
-        }
-        return colors.get(str(mode).lower(), "#0000FF")
+        # User requested bright green (#00FF00)
+        return "#00FF00"
 
     def copy_map_to_clipboard(self):
         try:
