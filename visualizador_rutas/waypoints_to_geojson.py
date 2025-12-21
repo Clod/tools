@@ -34,8 +34,11 @@ def extract_waypoints_to_geojson(input_path, output_path):
         print(f"Details: {e}")
         sys.exit(1)
 
-    events = data.get("userContext", {}).get("events", [])
-    # Determine where the events/waypoints are located
+def convert_to_geojson_data(data):
+    """
+    Core logic to convert Sentiance JSON data to GeoJSON.
+    Returns a dictionary representing the GeoJSON FeatureCollection.
+    """
     events = []
     if "userContext" in data and "events" in data["userContext"]:
         # Standard Sentiance export
@@ -44,12 +47,21 @@ def extract_waypoints_to_geojson(input_path, output_path):
         # Single transport event structure (like viaje.json)
         events = [data["transportEvent"]]
     elif "waypoints" in data:
-        # Root object is the event
-        events = [data]
+        # Root object is the event (or list of waypoints)
+        if isinstance(data["waypoints"], list):
+            events = [data]
+        else:
+            events = []
+    elif isinstance(data, list):
+        # Maybe a list of events
+        events = data
 
     features = []
 
     for idx, ev in enumerate(events):
+        if not isinstance(ev, dict):
+            continue
+            
         waypoints = ev.get("waypoints")
         if not waypoints:
             continue
@@ -57,8 +69,8 @@ def extract_waypoints_to_geojson(input_path, output_path):
         # Build coordinates array [lon, lat]
         coords = []
         for wp in waypoints:
-            lon = wp.get("longitude")
-            lat = wp.get("latitude")
+            lon = wp.get("longitude") or wp.get("lon")
+            lat = wp.get("latitude") or wp.get("lat")
             if lon is None or lat is None:
                 continue
             coords.append([lon, lat])
@@ -87,10 +99,23 @@ def extract_waypoints_to_geojson(input_path, output_path):
         }
         features.append(feature)
 
-    fc = {
+    return {
         "type": "FeatureCollection",
         "features": features,
     }
+
+
+def extract_waypoints_to_geojson(input_path, output_path):
+    # Load input JSON
+    try:
+        with open(input_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError) as e:
+        print(f"Error: Failed to process file '{input_path}'.")
+        print(f"Details: {e}")
+        sys.exit(1)
+
+    fc = convert_to_geojson_data(data)
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(fc, f, ensure_ascii=False, indent=2)
