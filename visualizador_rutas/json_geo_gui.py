@@ -29,18 +29,35 @@ class JsonGeoTool:
 
         # 2. Pretty JSON Section
         self.pretty_frame = tk.LabelFrame(self.paned, text="2. Formatted JSON", padx=5, pady=5)
+        self.paned.add(self.pretty_frame)
+        
+        self.pretty_header = tk.Frame(self.pretty_frame)
+        self.pretty_header.pack(fill=tk.X)
+        tk.Button(self.pretty_header, text="Copy formatted JSON", command=lambda: self.copy_to_clipboard(self.pretty_text)).pack(side=tk.RIGHT)
+        
         self.pretty_text = scrolledtext.ScrolledText(self.pretty_frame, height=10)
         self.pretty_text.pack(fill=tk.BOTH, expand=True)
-        self.paned.add(self.pretty_frame)
 
         # 3. GeoJSON Section
         self.geo_frame = tk.LabelFrame(self.paned, text="3. Generated GeoJSON", padx=5, pady=5)
+        self.paned.add(self.geo_frame)
+        
+        self.geo_header = tk.Frame(self.geo_frame)
+        self.geo_header.pack(fill=tk.X)
+        tk.Button(self.geo_header, text="Copy GeoJSON", command=lambda: self.copy_to_clipboard(self.geo_text)).pack(side=tk.RIGHT)
+        
         self.geo_text = scrolledtext.ScrolledText(self.geo_frame, height=10)
         self.geo_text.pack(fill=tk.BOTH, expand=True)
-        self.paned.add(self.geo_frame)
 
         # Configure tags for colors if needed
         self.pretty_text.tag_configure("error", foreground="red")
+
+    def copy_to_clipboard(self, text_widget):
+        content = text_widget.get("1.0", tk.END).strip()
+        if content:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(content)
+            messagebox.showinfo("Copied", "Content copied to clipboard!")
 
     def process_json(self):
         # Clear previous outputs
