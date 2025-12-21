@@ -2,6 +2,7 @@
 import json
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
+import tkintermapview
 from waypoints_to_geojson import convert_to_geojson_data
 
 class JsonGeoTool:
@@ -44,7 +45,8 @@ class JsonGeoTool:
         
         self.geo_header = tk.Frame(self.geo_frame)
         self.geo_header.pack(fill=tk.X)
-        tk.Button(self.geo_header, text="Copy GeoJSON", command=lambda: self.copy_to_clipboard(self.geo_text)).pack(side=tk.RIGHT)
+        tk.Button(self.geo_header, text="Copy GeoJSON", command=lambda: self.copy_to_clipboard(self.geo_text)).pack(side=tk.RIGHT, padx=2)
+        tk.Button(self.geo_header, text="Show on Map", command=self.show_map, bg="#2196F3", fg="black").pack(side=tk.RIGHT, padx=2)
         
         self.geo_text = scrolledtext.ScrolledText(self.geo_frame, height=10)
         self.geo_text.pack(fill=tk.BOTH, expand=True)
@@ -91,6 +93,85 @@ class JsonGeoTool:
             self.pretty_text.insert(tk.END, f"ERROR: {str(e)}", "error")
         except Exception as e:
             messagebox.showerror("Error", f"An unexpected error occurred:\n{str(e)}")
+
+    def show_map(self):
+        content = self.geo_text.get("1.0", tk.END).strip()
+        if not content or content.startswith("No waypoints") or content.startswith("ERROR"):
+            messagebox.showwarning("No Data", "No valid GeoJSON data to display on map.")
+            return
+        
+        try:
+            geojson_data = json.loads(content)
+            MapWindow(self.root, geojson_data)
+        except Exception as e:
+            messagebox.showerror("Map Error", f"Could not display map: {str(e)}")
+
+class MapWindow(tk.Toplevel):
+    def __init__(self, parent, geojson_data):
+        super().__init__(parent)
+        self.title("GeoJSON Map View")
+        self.geometry("900x700")
+        
+        # Add some instructions
+        lbl = tk.Label(self, text="Use Right Click to change map tile provider", fg="gray")
+        lbl.pack(side=tk.TOP, fill=tk.X)
+
+        self.map_widget = tkintermapview.TkinterMapView(self, corner_radius=0)
+        self.map_widget.pack(fill="both", expand=True)
+        
+        # Set default tile server (OpenStreetMap)
+        self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png")
+        
+        self.display_geojson(geojson_data)
+
+    def display_geojson(self, geojson_data):
+        features = geojson_data.get("features", [])
+        if not features:
+            return
+
+        all_coords = []
+        
+        for feature in features:
+            geom = feature.get("geometry", {})
+            props = feature.get("properties", {})
+            
+            if geom.get("type") == "LineString":
+                coords = geom.get("coordinates", [])
+                # tkintermapview path needs (lat, lon)
+                path_coords = [(lat, lon) for lon, lat in coords]
+                if path_coords:
+                    # Color based on transport mode if available
+                    color = self.get_color_by_mode(props.get("transportMode"))
+                    self.map_widget.set_path(path_coords, color=color, width=3)
+                    all_coords.extend(path_coords)
+                    
+                    # Add marker at start and end
+                    self.map_widget.set_marker(path_coords[0][0], path_coords[0][1], text=f"Start: {props.get('type','?')}")
+                    self.map_widget.set_marker(path_coords[-1][0], path_coords[-1][1], text=f"End: {props.get('type','?')}")
+        
+        if all_coords:
+            # Set map position to focus on the data
+            lats = [c[0] for c in all_coords]
+            lons = [c[1] for c in all_coords]
+            min_lat, max_lat = min(lats), max(lats)
+            min_lon, max_lon = min(lons), max(lons)
+            
+            avg_lat = (min_lat + max_lat) / 2
+            avg_lon = (min_lon + max_lon) / 2
+            
+            self.map_widget.set_position(avg_lat, avg_lon)
+            self.map_widget.set_zoom(14)
+
+    def get_color_by_mode(self, mode):
+        colors = {
+            "bus": "#FF5722",
+            "car": "#2196F3",
+            "walking": "#4CAF50",
+            "train": "#9C27B0",
+            "cycling": "#FFEB3B",
+            "stationary": "#9E9E9E"
+        }
+        return colors.get(str(mode).lower(), "#0000FF")
 
 if __name__ == "__main__":
     root = tk.Tk()
