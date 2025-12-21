@@ -20,12 +20,17 @@ class JsonGeoTool:
         self.input_text = scrolledtext.ScrolledText(self.input_frame, height=10, undo=True)
         self.input_text.pack(fill=tk.BOTH, expand=True)
         
-        # Process Button (inside input frame for proximity)
+        # Process & Clear Buttons
         self.btn_frame = tk.Frame(self.input_frame, pady=5)
         self.btn_frame.pack(fill=tk.X)
+        
         self.convert_btn = tk.Button(self.btn_frame, text="⚡ Process & Format", command=self.process_json, 
                                      bg="#00FF00", fg="black", font=("Arial", 10, "bold"), padx=20)
-        self.convert_btn.pack(side=tk.RIGHT)
+        self.convert_btn.pack(side=tk.RIGHT, padx=5)
+
+        self.clear_btn = tk.Button(self.btn_frame, text="🗑 Clear All", command=self.clear_all, 
+                                   bg="#f44336", fg="black", font=("Arial", 10), padx=15)
+        self.clear_btn.pack(side=tk.RIGHT, padx=5)
         
         self.paned.add(self.input_frame)
 
@@ -61,6 +66,12 @@ class JsonGeoTool:
             self.root.clipboard_clear()
             self.root.clipboard_append(content)
             messagebox.showinfo("Copied", "Content copied to clipboard!")
+
+    def clear_all(self):
+        """Clears all text widgets."""
+        self.input_text.delete("1.0", tk.END)
+        self.pretty_text.delete("1.0", tk.END)
+        self.geo_text.delete("1.0", tk.END)
 
     def process_json(self):
         # Clear previous outputs
