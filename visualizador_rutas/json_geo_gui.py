@@ -112,9 +112,12 @@ class MapWindow(tk.Toplevel):
         self.title("GeoJSON Map View")
         self.geometry("900x700")
         
-        # Add some instructions
-        lbl = tk.Label(self, text="Use Right Click to change map tile provider", fg="gray")
-        lbl.pack(side=tk.TOP, fill=tk.X)
+        # Button Section
+        btn_frame = tk.Frame(self)
+        btn_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+        
+        tk.Label(btn_frame, text="Use Right Click to change map tile provider", fg="gray").pack(side=tk.LEFT)
+        tk.Button(btn_frame, text="📸 Copy Map to Clipboard", command=self.copy_map_to_clipboard, bg="#FF9800", fg="black").pack(side=tk.RIGHT)
 
         self.map_widget = tkintermapview.TkinterMapView(self, corner_radius=0)
         self.map_widget.pack(fill="both", expand=True)
@@ -172,6 +175,47 @@ class MapWindow(tk.Toplevel):
             "stationary": "#9E9E9E"
         }
         return colors.get(str(mode).lower(), "#0000FF")
+
+    def copy_map_to_clipboard(self):
+        try:
+            from PIL import ImageGrab
+            import subprocess
+            import os
+            import tempfile
+            from tkinter import messagebox
+
+            # Update idletasks to ensure widget is drawn and position is correct
+            self.update_idletasks()
+            
+            # Get widget position relative to screen
+            # we need to consider the scaling factor on Mac/Retina
+            # Tkinter winfo usually returns logical pixels.
+            x1 = self.map_widget.winfo_rootx()
+            y1 = self.map_widget.winfo_rooty()
+            x2 = x1 + self.map_widget.winfo_width()
+            y2 = y1 + self.map_widget.winfo_height()
+
+            # Capture the widget
+            # Note: ImageGrab.grab(bbox) on Mac might require screen recording permissions
+            img = ImageGrab.grab(bbox=(x1, y1, x2, y2))
+            
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+                temp_path = tmp.name
+                img.save(temp_path)
+            
+            # Use AppleScript to put the image file into the clipboard on macOS
+            script = f'set the clipboard to (read (POSIX file "{temp_path}") as «class PNGf»)'
+            subprocess.run(['osascript', '-e', script], check=True)
+            
+            # Clean up
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                
+            messagebox.showinfo("Clipboard", "Map image copied to clipboard!\n(Note: Screen recording permission may be required if the image is blank)")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to copy map image:\n{str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
