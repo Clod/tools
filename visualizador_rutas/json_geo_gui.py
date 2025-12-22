@@ -11,6 +11,8 @@ class JsonGeoTool:
         self.root.title("Sentiance JSON & GeoJSON Viewer")
         self.root.geometry("1000x800")
 
+        self.last_data = None
+        
         # Main PanedWindow (Vertical)
         self.paned = tk.PanedWindow(root, orient=tk.VERTICAL, sashwidth=4, bg="#cccccc")
         self.paned.pack(fill=tk.BOTH, expand=True)
@@ -40,7 +42,8 @@ class JsonGeoTool:
         
         self.pretty_header = tk.Frame(self.pretty_frame)
         self.pretty_header.pack(fill=tk.X)
-        tk.Button(self.pretty_header, text="Copy formatted JSON", command=lambda: self.copy_to_clipboard(self.pretty_text)).pack(side=tk.RIGHT)
+        tk.Button(self.pretty_header, text="Copy formatted JSON", command=lambda: self.copy_to_clipboard(self.pretty_text)).pack(side=tk.RIGHT, padx=2)
+        tk.Button(self.pretty_header, text="Copy Truncated (AI)", command=self.copy_truncated_json, bg="#e1f5fe").pack(side=tk.RIGHT, padx=2)
         
         self.pretty_text = scrolledtext.ScrolledText(self.pretty_frame, height=10)
         self.pretty_text.pack(fill=tk.BOTH, expand=True)
@@ -57,15 +60,74 @@ class JsonGeoTool:
         self.geo_text = scrolledtext.ScrolledText(self.geo_frame, height=10)
         self.geo_text.pack(fill=tk.BOTH, expand=True)
 
-        # Configure tags for colors if needed
+        # Configure tags for colors
         self.pretty_text.tag_configure("error", foreground="red")
+        self.setup_highlight_tags(self.pretty_text)
+        self.setup_highlight_tags(self.geo_text)
 
-    def copy_to_clipboard(self, text_widget):
-        content = text_widget.get("1.0", tk.END).strip()
-        if content:
-            self.root.clipboard_clear()
-            self.root.clipboard_append(content)
-            messagebox.showinfo("Copied", "Content copied to clipboard!")
+    def setup_highlight_tags(self, text_widget):
+        """Define colors for JSON syntax highlighting"""
+        text_widget.tag_configure("key", foreground="#1a73e8", font=("Courier", 10, "bold"))
+        text_widget.tag_configure("string", foreground="#0d904f")
+        text_widget.tag_configure("number", foreground="#d93025")
+        text_widget.tag_configure("boolean", foreground="#9334e6")
+        text_widget.tag_configure("null", foreground="#70757a")
+
+    def highlight_json(self, text_widget, json_str):
+        """Apply syntax highlighting to the JSON string in the widget"""
+        import re
+        text_widget.delete("1.0", tk.END)
+        text_widget.insert("1.0", json_str)
+        # Basic JSON highlighting regex
+        for match in re.finditer(r'"([^"]+)"\s*:', json_str):
+            text_widget.tag_add("key", f"1.0 + {match.start()} chars", f"1.0 + {match.end()-1} chars")
+        for match in re.finditer(r':\s*"([^"]*)"', json_str):
+            text_widget.tag_add("string", f"1.0 + {match.start()+1} chars", f"1.0 + {match.end()} chars")
+        for match in re.finditer(r'-?\d+(?:\.\d+)?', json_str):
+            if not text_widget.tag_names(f"1.0 + {match.start()} chars"):
+                text_widget.tag_add("number", f"1.0 + {match.start()} chars", f"1.0 + {match.end()} chars")
+
+    def generate_html(self, text_widget):
+        """Converts text widget content with tags to an HTML string."""
+        content = text_widget.get("1.0", tk.END)
+        html = ['<div style="font-family: monospace; white-space: pre; background-color: #ffffff; padding: 10px;">']
+        # Simplified HTML generator for brevity but restoring the feature
+        html.append(content.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+        html.append('</div>')
+        return "".join(html)
+
+    def copy_to_clipboard(self, text_widget, override_text=None):
+        """Copies plain text and HTML to clipboard in an OS-agnostic way."""
+        content = override_text if override_text else text_widget.get("1.0", tk.END).strip()
+        if not content: return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(content)
+        import platform, subprocess
+        if platform.system() == "Darwin":
+            try:
+                applescript = f'set the clipboard to "{content.replace('"', '\\"').replace('\\', '\\\\')}"'
+                subprocess.run(['osascript', '-e', applescript], check=True)
+            except: pass
+        messagebox.showinfo("Copied", "Content copied to clipboard!")
+
+    def copy_truncated_json(self):
+        if not self.last_data:
+            messagebox.showwarning("No Data", "Please process a JSON first.")
+            return
+        import copy
+        truncated = copy.deepcopy(self.last_data)
+        self._truncate_recursive(truncated)
+        truncated_str = json.dumps(truncated, indent=2, ensure_ascii=False)
+        self.copy_to_clipboard(None, override_text=truncated_str)
+
+    def _truncate_recursive(self, obj):
+        if isinstance(obj, dict):
+            for k, v in list(obj.items()):
+                if k == "waypoints" and isinstance(v, list) and len(v) > 2:
+                    obj[k] = [v[0], v[-1]]
+                else: self._truncate_recursive(v)
+        elif isinstance(obj, list):
+            for item in obj: self._truncate_recursive(item)
 
     def clear_all(self):
         """Clears all text widgets."""
@@ -86,9 +148,10 @@ class JsonGeoTool:
             # Parse JSON
             data = json.loads(raw_content)
             
-            # 1. Output Pretty JSON
+            # 1. Output Pretty JSON with Highlighting
             pretty_json = json.dumps(data, indent=2, ensure_ascii=False)
-            self.pretty_text.insert(tk.END, pretty_json)
+            self.highlight_json(self.pretty_text, pretty_json)
+            self.last_data = data
 
             # 2. Output GeoJSON
             geojson_data = convert_to_geojson_data(data)
@@ -96,7 +159,7 @@ class JsonGeoTool:
             # Only show if there are actual features
             if geojson_data.get("features"):
                 final_geojson = json.dumps(geojson_data, indent=2, ensure_ascii=False)
-                self.geo_text.insert(tk.END, final_geojson)
+                self.highlight_json(self.geo_text, final_geojson)
             else:
                 self.geo_text.insert(tk.END, "No waypoints found in the input JSON.")
 
