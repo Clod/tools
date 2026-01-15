@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.19.2"
-app = marimo.App(width="medium")
+app = marimo.App(width="full")
 
 
 @app.cell
@@ -10,7 +10,8 @@ def _():
     import pandas as pd
     import json
     import sqlalchemy
-    return json, mo, pd, sqlalchemy
+    import leafmap
+    return json, leafmap, mo, pd, sqlalchemy
 
 
 @app.cell
@@ -133,7 +134,7 @@ def _(json, mo, table):
 
 
 @app.cell(hide_code=True)
-def _(json, mo, pd, table):
+def _(json, leafmap, mo, pd, table):
     # Check if a row is selected
     geo_selected_row = table.value
 
@@ -163,7 +164,7 @@ def _(json, mo, pd, table):
                         "Data": obj
                     })
                     current_is_path = True
-                
+
                 # 2. Check for Venue / Location structure
                 else:
                     coords = None
@@ -183,7 +184,9 @@ def _(json, mo, pd, table):
                             "Significance": g_significance,
                             "Accuracy": g_accuracy,
                             "Summary": f"Coord: {coords[0]}, {coords[1]}",
-                            "Data": obj
+                            "Data": obj,
+                            "Lat": coords[0],
+                            "Lon": coords[1]
                         })
 
                 # Continue searching sub-objects
@@ -210,41 +213,106 @@ def _(json, mo, pd, table):
         if geo_data_found:
             geo_df = pd.DataFrame(geo_data_found)
 
-            # Display a nice table with the new metadata
+            # Interactive sub-table for selecting geo elements
             table_cols = ["Kind", "Source", "GeoType", "Significance", "Accuracy", "Summary"]
-            # Ensure columns exist in df before selecting
             table_cols = [c for c in table_cols if c in geo_df.columns]
 
-            # Create a display for each geo structure
-            geo_displays = []
-            for item in geo_data_found:
-                metadata_lines = []
-                if item.get("GeoType"): metadata_lines.append(f"**Type:** {item['GeoType']}")
-                if item.get("Significance"): metadata_lines.append(f"**Significance:** {item['Significance']}")
-                if item.get("Accuracy"): metadata_lines.append(f"**Accuracy:** {item['Accuracy']}m")
-
-                geo_displays.append(
-                    mo.vstack([
-                        mo.md(f"#### {item['Kind']} (from `{item['Source']}`)"),
-                        mo.md("  \n".join(metadata_lines)) if metadata_lines else mo.md(""),
-                        mo.md(f"**Summary:** {item['Summary']}"),
-                        mo.accordion({"Raw Data": mo.ui.text_area(value=json.dumps(item['Data'], indent=2), disabled=True, rows=10)})
-                    ], gap=0.5)
-                )
-
-            geo_view = mo.vstack([
-                mo.md("## 🌍 Geographic Information"),
-                mo.ui.table(geo_df[table_cols], label="Detected Geographic Elements"),
-                mo.md("### Details"),
-                mo.vstack(geo_displays, gap=2)
-            ])
+            geo_table_ui = mo.ui.table(geo_df[table_cols], selection="single", label="Select to zoom in map")
         else:
-            geo_view = mo.md("ℹ️ *No geographic information (waypoints/coordinates) detected in this record.*")
+            geo_table_ui = None
+            geo_df = None
+            geo_data_found = []
     else:
-        geo_view = mo.md("")
+        geo_table_ui = None
+        geo_df = None
+        geo_data_found = []
+
+    return geo_data_found, geo_df, geo_table_ui
+
+
+@app.cell(hide_code=True)
+def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
+    # This cell creates the map dynamically based on selection
+    if geo_table_ui is not None and geo_df is not None:
+        # Check if a specific element is selected
+        if len(geo_table_ui.value) > 0:
+            selected_item = geo_table_ui.value.iloc[0]
+            orig_item = geo_df[geo_df["Source"] == selected_item["Source"]].iloc[0]
+            
+            # Create map focused on selected item
+            if orig_item["Kind"] == "Venue 📍":
+                m = leafmap.Map(backend="ipyleaflet", center=[orig_item["Lat"], orig_item["Lon"]], zoom=15, minimize_control=True)
+                m.add_marker(location=[orig_item["Lat"], orig_item["Lon"]], tooltip=f"{orig_item['Source']} - SELECTED")
+            elif orig_item["Kind"] == "Path 🛤️":
+                pts = [[p["latitude"], p["longitude"]] for p in orig_item["Data"]["waypoints"]]
+                if pts:
+                    # Calculate center
+                    center_lat = sum(p[0] for p in pts) / len(pts)
+                    center_lon = sum(p[1] for p in pts) / len(pts)
+                    m = leafmap.Map(backend="ipyleaflet", center=[center_lat, center_lon], zoom=13, minimize_control=True)
+                    
+                    coords = [[p["longitude"], p["latitude"]] for p in orig_item["Data"]["waypoints"]]
+                    line_geojson = {
+                        "type": "FeatureCollection",
+                        "features": [{
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": coords
+                            },
+                            "properties": {"name": f"{orig_item['Source']} - SELECTED"}
+                        }]
+                    }
+                    m.add_geojson(line_geojson, layer_name=orig_item["Source"])
+                else:
+                    m = leafmap.Map(backend="ipyleaflet", center=[-34.6, -58.4], zoom=10, minimize_control=True)
+            else:
+                m = leafmap.Map(backend="ipyleaflet", center=[-34.6, -58.4], zoom=10, minimize_control=True)
+        else:
+            # No selection - show all elements
+            m = leafmap.Map(backend="ipyleaflet", center=[-34.6, -58.4], zoom=10, minimize_control=True)
+            
+            for idx, row in geo_df.iterrows():
+                if row["Kind"] == "Venue 📍":
+                    m.add_marker(location=[row["Lat"], row["Lon"]], tooltip=f"{row['Source']} ({row['GeoType'] or ''})")
+                elif row["Kind"] == "Path 🛤️":
+                    coords = [[p["longitude"], p["latitude"]] for p in row["Data"]["waypoints"]]
+                    if coords:
+                        line_geojson = {
+                            "type": "FeatureCollection",
+                            "features": [{
+                                "type": "Feature",
+                                "geometry": {
+                                    "type": "LineString",
+                                    "coordinates": coords
+                                },
+                                "properties": {"name": row["Source"]}
+                            }]
+                        }
+                        m.add_geojson(line_geojson, layer_name=row["Source"])
+
+        # Layout: Table on left, Map on right
+        geo_view = mo.vstack([
+            mo.md("## 🌍 Interactive Geographic View"),
+            mo.hstack([
+                mo.vstack([mo.md("### Elements"), geo_table_ui], align="stretch"),
+                mo.vstack([mo.md("### Map"), m], align="stretch")
+            ], gap=2, align="start"),
+            mo.md("### Details"),
+            mo.vstack([
+                mo.vstack([
+                    mo.md(f"#### {item['Kind']} (from `{item['Source']}`)"),
+                    mo.md(f"**Description:** {item['Summary']}"),
+                    mo.accordion({"Raw Data": mo.ui.text_area(value=json.dumps(item['Data'], indent=2), disabled=True, rows=10)})
+                ], gap=0.5) for item in geo_data_found
+            ], gap=2)
+        ])
+    else:
+        geo_view = mo.md("ℹ️ *No geographic information detected.*")
 
     geo_view
     return
+
 
 
 if __name__ == "__main__":
