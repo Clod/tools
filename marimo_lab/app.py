@@ -54,7 +54,7 @@ def _(engine, mo):
     # Execute the query and store result in a DataFrame
     df = mo.sql(
         f"""
-        SELECT TOP 10 * FROM VictaTMTK.dbo.SentianceEventos
+        SELECT TOP 100 * FROM VictaTMTK.dbo.SentianceEventos
         """,
         engine=engine
     )
@@ -72,55 +72,65 @@ def _(df, mo):
 @app.cell
 def _(mo, table):
     import json
-    
+
     # Check if a row is selected
     selected_row = table.value
-    
+
     if len(selected_row) > 0:
         # Get the first (and only) selected row
         row_data = selected_row.iloc[0]
-        
-        # We can map the columns to UI elements dynamically or specifically
-        # Let's show the first 6 columns as requested
-        cols = row_data.index[:6]
-        
-        items = []
-        for col in cols:
+
+        # Lists to hold the UI components for each column
+        left_items = []
+        right_items = []
+
+        for col in row_data.index:
             val = row_data[col]
-            
-            # Attempt to format as JSON if it's a string or a dict/list
+
+            # Attempt to format as JSON if it's potentially a JSON object
             formatted_val = str(val)
+            is_json = False
+
             try:
-                if isinstance(val, str):
-                    # Try to parse string as JSON
+                # If it looks like JSON (starts with { or [)
+                if isinstance(val, str) and val.strip().startswith(("{", "[")):
                     parsed = json.loads(val)
                     formatted_val = json.dumps(parsed, indent=4)
+                    is_json = True
                 elif isinstance(val, (dict, list)):
-                    # Already an object
                     formatted_val = json.dumps(val, indent=4)
+                    is_json = True
             except:
-                # Fallback to original string if not valid JSON
                 pass
-                
-            items.append(
-                mo.vstack([
-                    mo.md(f"**{col}**"),
-                    mo.ui.text_area(value=formatted_val, disabled=True, rows=10 if "json" in col.lower() or len(formatted_val) > 50 else 3)
-                ])
-            )
-        
+
+            # Create the UI component
+            # Adaptive height: much taller for JSON fields
+            box_height = 25 if is_json else 2
+
+            field_ui = mo.vstack([
+                mo.md(f"**{col}**"),
+                mo.ui.text_area(value=formatted_val, disabled=True, rows=box_height)
+            ], gap=0.5)
+
+            # Categorize: JSON on the right, everything else on the left
+            if is_json or "json" in col.lower():
+                right_items.append(field_ui)
+            else:
+                left_items.append(field_ui)
+
+        # Assemble the final view
         view = mo.vstack([
             mo.md("### Row Detail"),
             mo.hstack([
-                mo.vstack(items[0:3], gap=1),
-                mo.vstack(items[3:6], gap=1)
-            ], align="start", gap=2)
-        ])
+                mo.vstack(left_items, gap=1, align="stretch"),
+                mo.vstack(right_items, gap=1, align="stretch")
+            ], gap=2, align="start")
+        ], gap=1)
     else:
         view = mo.md("💡 *Select a row in the table above to view its details here.*")
-        
+
     view
-    return cols, items, json, row_data, selected_row, view
+    return
 
 
 if __name__ == "__main__":
