@@ -56,6 +56,7 @@ def _(engine, mo):
         f"""
         SELECT TOP 100 * FROM VictaTMTK.dbo.SentianceEventos
         """,
+        output=False,
         engine=engine
     )
     return (df,)
@@ -140,9 +141,10 @@ def _(json, mo, pd, table):
         geo_row_data = geo_selected_row.iloc[0]
         geo_data_found = []
 
-        def find_geo_structures(obj, parent_key=""):
+        def find_geo_structures(obj, parent_key="", in_path=False):
             """Recursively find waypoints or lat/long in dicts/lists"""
             if isinstance(obj, dict):
+                current_is_path = False
                 # Check for Path (waypoints)
                 if "waypoints" in obj:
                     geo_data_found.append({
@@ -151,8 +153,9 @@ def _(json, mo, pd, table):
                         "Summary": f"{len(obj['waypoints'])} waypoints found",
                         "Data": obj
                     })
+                    current_is_path = True
                 # Check for Venue (lat/long) - Avoid duplicates if it's part of a path
-                elif "latitude" in obj and "longitude" in obj:
+                elif "latitude" in obj and "longitude" in obj and not in_path:
                     geo_data_found.append({
                         "Source": parent_key or "root",
                         "Type": "Venue 📍",
@@ -162,11 +165,11 @@ def _(json, mo, pd, table):
 
                 # Continue searching sub-objects
                 for k, v in obj.items():
-                    find_geo_structures(v, f"{parent_key}.{k}" if parent_key else k)
+                    find_geo_structures(v, f"{parent_key}.{k}" if parent_key else k, in_path=in_path or current_is_path)
 
             elif isinstance(obj, list):
                 for i, item in enumerate(obj):
-                    find_geo_structures(item, f"{parent_key}[{i}]")
+                    find_geo_structures(item, f"{parent_key}[{i}]", in_path=in_path)
 
         # Scan all columns in the row
         for geo_col in geo_row_data.index:
