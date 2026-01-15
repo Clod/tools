@@ -145,23 +145,46 @@ def _(json, mo, pd, table):
             """Recursively find waypoints or lat/long in dicts/lists"""
             if isinstance(obj, dict):
                 current_is_path = False
-                # Check for Path (waypoints)
+
+                # Metadata detection
+                g_type = obj.get("type", obj.get("venue_type"))
+                g_significance = obj.get("significance")
+                g_accuracy = obj.get("accuracy")
+
+                # 1. Check for Path (waypoints)
                 if "waypoints" in obj:
                     geo_data_found.append({
                         "Source": parent_key or "root",
-                        "Type": "Path 🛤️",
+                        "Kind": "Path 🛤️",
+                        "GeoType": g_type,
+                        "Significance": g_significance,
+                        "Accuracy": g_accuracy,
                         "Summary": f"{len(obj['waypoints'])} waypoints found",
                         "Data": obj
                     })
                     current_is_path = True
-                # Check for Venue (lat/long) - Avoid duplicates if it's part of a path
-                elif "latitude" in obj and "longitude" in obj and not in_path:
-                    geo_data_found.append({
-                        "Source": parent_key or "root",
-                        "Type": "Venue 📍",
-                        "Summary": f"Coord: {obj['latitude']}, {obj['longitude']}",
-                        "Data": obj
-                    })
+                
+                # 2. Check for Venue / Location structure
+                else:
+                    coords = None
+                    # Direct lat/long
+                    if "latitude" in obj and "longitude" in obj:
+                        coords = (obj["latitude"], obj["longitude"])
+                    # Nested in 'location' (common in Sentiance data)
+                    elif isinstance(obj.get("location"), dict) and "latitude" in obj["location"] and "longitude" in obj["location"]:
+                        coords = (obj["location"]["latitude"], obj["location"]["longitude"])
+                        g_accuracy = g_accuracy or obj["location"].get("accuracy")
+
+                    if coords and not in_path:
+                        geo_data_found.append({
+                            "Source": parent_key or "root",
+                            "Kind": "Venue 📍",
+                            "GeoType": g_type,
+                            "Significance": g_significance,
+                            "Accuracy": g_accuracy,
+                            "Summary": f"Coord: {coords[0]}, {coords[1]}",
+                            "Data": obj
+                        })
 
                 # Continue searching sub-objects
                 for k, v in obj.items():
@@ -187,20 +210,31 @@ def _(json, mo, pd, table):
         if geo_data_found:
             geo_df = pd.DataFrame(geo_data_found)
 
+            # Display a nice table with the new metadata
+            table_cols = ["Kind", "Source", "GeoType", "Significance", "Accuracy", "Summary"]
+            # Ensure columns exist in df before selecting
+            table_cols = [c for c in table_cols if c in geo_df.columns]
+
             # Create a display for each geo structure
             geo_displays = []
             for item in geo_data_found:
+                metadata_lines = []
+                if item.get("GeoType"): metadata_lines.append(f"**Type:** {item['GeoType']}")
+                if item.get("Significance"): metadata_lines.append(f"**Significance:** {item['Significance']}")
+                if item.get("Accuracy"): metadata_lines.append(f"**Accuracy:** {item['Accuracy']}m")
+
                 geo_displays.append(
                     mo.vstack([
-                        mo.md(f"#### {item['Type']} (from `{item['Source']}`)"),
-                        mo.md(f"**Description:** {item['Summary']}"),
+                        mo.md(f"#### {item['Kind']} (from `{item['Source']}`)"),
+                        mo.md("  \n".join(metadata_lines)) if metadata_lines else mo.md(""),
+                        mo.md(f"**Summary:** {item['Summary']}"),
                         mo.accordion({"Raw Data": mo.ui.text_area(value=json.dumps(item['Data'], indent=2), disabled=True, rows=10)})
                     ], gap=0.5)
                 )
 
             geo_view = mo.vstack([
                 mo.md("## 🌍 Geographic Information"),
-                mo.ui.table(geo_df[["Type", "Source", "Summary"]], label="Detected Geographic Elements"),
+                mo.ui.table(geo_df[table_cols], label="Detected Geographic Elements"),
                 mo.md("### Details"),
                 mo.vstack(geo_displays, gap=2)
             ])
