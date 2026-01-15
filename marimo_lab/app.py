@@ -71,6 +71,8 @@ def _(df, mo):
 
 @app.cell
 def _(mo, table):
+    import json
+    
     # Check if a row is selected
     selected_row = table.value
     
@@ -78,19 +80,34 @@ def _(mo, table):
         # Get the first (and only) selected row
         row_data = selected_row.iloc[0]
         
-        # Create a nice detail view using a grid and read-only text areas or inputs
-        # or just a formatted card. Since the user asked for 6 text boxes:
-        
         # We can map the columns to UI elements dynamically or specifically
         # Let's show the first 6 columns as requested
         cols = row_data.index[:6]
         
-        items = [
-            mo.vstack([
-                mo.md(f"**{col}**"),
-                mo.ui.text_area(value=str(row_data[col]), disabled=True, rows=3)
-            ]) for col in cols
-        ]
+        items = []
+        for col in cols:
+            val = row_data[col]
+            
+            # Attempt to format as JSON if it's a string or a dict/list
+            formatted_val = str(val)
+            try:
+                if isinstance(val, str):
+                    # Try to parse string as JSON
+                    parsed = json.loads(val)
+                    formatted_val = json.dumps(parsed, indent=4)
+                elif isinstance(val, (dict, list)):
+                    # Already an object
+                    formatted_val = json.dumps(val, indent=4)
+            except:
+                # Fallback to original string if not valid JSON
+                pass
+                
+            items.append(
+                mo.vstack([
+                    mo.md(f"**{col}**"),
+                    mo.ui.text_area(value=formatted_val, disabled=True, rows=10 if "json" in col.lower() or len(formatted_val) > 50 else 3)
+                ])
+            )
         
         view = mo.vstack([
             mo.md("### Row Detail"),
@@ -103,7 +120,7 @@ def _(mo, table):
         view = mo.md("💡 *Select a row in the table above to view its details here.*")
         
     view
-    return cols, items, row_data, selected_row, view
+    return cols, items, json, row_data, selected_row, view
 
 
 if __name__ == "__main__":
