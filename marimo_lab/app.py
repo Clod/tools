@@ -7,7 +7,10 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
-    return (mo,)
+    import pandas as pd
+    import json
+    import sqlalchemy
+    return json, mo, pd, sqlalchemy
 
 
 @app.cell
@@ -29,10 +32,7 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import sqlalchemy
-    import pandas as pd
-
+def _(sqlalchemy):
     # Update these with your actual credentials
     server = 'ltkbase003.cjo9vciowl0y.us-east-1.rds.amazonaws.com'
     database = 'VictaTMTK'
@@ -69,10 +69,8 @@ def _(df, mo):
     return (table,)
 
 
-@app.cell
-def _(mo, table):
-    import json
-
+@app.cell(hide_code=True)
+def _(json, mo, table):
     # Check if a row is selected
     selected_row = table.value
 
@@ -130,6 +128,85 @@ def _(mo, table):
         view = mo.md("💡 *Select a row in the table above to view its details here.*")
 
     view
+    return
+
+
+@app.cell(hide_code=True)
+def _(json, mo, pd, table):
+    # Check if a row is selected
+    geo_selected_row = table.value
+
+    if len(geo_selected_row) > 0:
+        geo_row_data = geo_selected_row.iloc[0]
+        geo_data_found = []
+
+        def find_geo_structures(obj, parent_key=""):
+            """Recursively find waypoints or lat/long in dicts/lists"""
+            if isinstance(obj, dict):
+                # Check for Path (waypoints)
+                if "waypoints" in obj:
+                    geo_data_found.append({
+                        "Source": parent_key or "root",
+                        "Type": "Path 🛤️",
+                        "Summary": f"{len(obj['waypoints'])} waypoints found",
+                        "Data": obj
+                    })
+                # Check for Venue (lat/long) - Avoid duplicates if it's part of a path
+                elif "latitude" in obj and "longitude" in obj:
+                    geo_data_found.append({
+                        "Source": parent_key or "root",
+                        "Type": "Venue 📍",
+                        "Summary": f"Coord: {obj['latitude']}, {obj['longitude']}",
+                        "Data": obj
+                    })
+
+                # Continue searching sub-objects
+                for k, v in obj.items():
+                    find_geo_structures(v, f"{parent_key}.{k}" if parent_key else k)
+
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    find_geo_structures(item, f"{parent_key}[{i}]")
+
+        # Scan all columns in the row
+        for geo_col in geo_row_data.index:
+            geo_val = geo_row_data[geo_col]
+            # Try to parse as JSON if it's a string
+            if isinstance(geo_val, str) and geo_val.strip().startswith(("{", "[")):
+                try:
+                    geo_parsed = json.loads(geo_val)
+                    find_geo_structures(geo_parsed, geo_col)
+                except:
+                    pass
+            elif isinstance(geo_val, (dict, list)):
+                find_geo_structures(geo_val, geo_col)
+
+        if geo_data_found:
+            geo_df = pd.DataFrame(geo_data_found)
+
+            # Create a display for each geo structure
+            geo_displays = []
+            for item in geo_data_found:
+                geo_displays.append(
+                    mo.vstack([
+                        mo.md(f"#### {item['Type']} (from `{item['Source']}`)"),
+                        mo.md(f"**Description:** {item['Summary']}"),
+                        mo.accordion({"Raw Data": mo.ui.text_area(value=json.dumps(item['Data'], indent=2), disabled=True, rows=10)})
+                    ], gap=0.5)
+                )
+
+            geo_view = mo.vstack([
+                mo.md("## 🌍 Geographic Information"),
+                mo.ui.table(geo_df[["Type", "Source", "Summary"]], label="Detected Geographic Elements"),
+                mo.md("### Details"),
+                mo.vstack(geo_displays, gap=2)
+            ])
+        else:
+            geo_view = mo.md("ℹ️ *No geographic information (waypoints/coordinates) detected in this record.*")
+    else:
+        geo_view = mo.md("")
+
+    geo_view
     return
 
 
