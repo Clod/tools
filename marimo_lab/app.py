@@ -51,16 +51,60 @@ def _(sqlalchemy):
 
 
 @app.cell
-def _(engine, mo):
-    # Execute the query and store result in a DataFrame
+def _(mo):
+    mo.md("### Data Filtering")
+    sid_input = mo.ui.text(label="Sentiance ID", placeholder="Enter ID...")
+    start_dt = mo.ui.datetime(label="Start Date/Time")
+    end_dt = mo.ui.datetime(label="End Date/Time")
+    
+    filter_ui = mo.hstack([sid_input, start_dt, end_dt], gap=2)
+    filter_ui
+    return end_dt, filter_ui, sid_input, start_dt
+
+
+@app.cell
+def _(end_dt, engine, mo, sid_input, start_dt):
+    # Prepare the query with filters
+    base_query = "SELECT TOP 100 * FROM VictaTMTK.dbo.SentianceEventos"
+    where_clauses = []
+    
+    # Clean up and validate inputs
+    sid = sid_input.value.strip() if sid_input.value else None
+    start = start_dt.value if start_dt.value else None
+    end = end_dt.value if end_dt.value else None
+    
+    if sid:
+        where_clauses.append(f"sentianceid = '{sid}'")
+    
+    if start:
+        # standard ISO format works best with SQL Server
+        where_clauses.append(f"fechahora >= '{start}'")
+    
+    if end:
+        where_clauses.append(f"fechahora <= '{end}'")
+        
+    query = base_query
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+    
+    # Sorting by fechahora to see the most recent or chronological data
+    query += " ORDER BY fechahora DESC"
+
+    # Logging the query for debugging
+    query_log = mo.accordion({
+        "📝 SQL Query Log": mo.md(f"```sql\n{query}\n```")
+    })
+
     df = mo.sql(
-        f"""
-        SELECT TOP 100 * FROM VictaTMTK.dbo.SentianceEventos
-        """,
+        query,
         output=False,
         engine=engine
     )
-    return (df,)
+    
+    # Display the log
+    query_log
+    
+    return df, query_log
 
 
 @app.cell
