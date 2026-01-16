@@ -11,7 +11,13 @@ def _():
     import json
     import sqlalchemy
     import leafmap
-    return json, leafmap, mo, pd, sqlalchemy
+    import os
+    from dotenv import load_dotenv
+    
+    # Load environment variables from .env file
+    load_dotenv()
+    
+    return json, leafmap, load_dotenv, mo, os, pd, sqlalchemy
 
 
 @app.cell
@@ -33,21 +39,32 @@ def _(mo):
 
 
 @app.cell
-def _(sqlalchemy):
-    # Update these with your actual credentials
-    server = 'ltkbase003.cjo9vciowl0y.us-east-1.rds.amazonaws.com'
-    database = 'VictaTMTK'
-    username = 'ClaudioVicta'
-    password = 'XXXX'
-    port = 9433
+def _(os, sqlalchemy):
+    # Credentials are now loaded from the .env file for security
+    server = os.getenv("DB_SERVER")
+    database = os.getenv("DB_NAME")
+    username = os.getenv("DB_USER")
+    password = os.getenv("DB_PASS")
+    port = os.getenv("DB_PORT", 9433)
 
     # Connection string for pymssql
-    # Format: mssql+pymssql://<username>:<password>@<server>:<port>/<database>
     connection_string = f"mssql+pymssql://{username}:{password}@{server}:{port}/{database}"
 
-    # Create engine (we don't connect yet to avoid errors if credentials are wrong)
+    # Create engine
     engine = sqlalchemy.create_engine(connection_string)
     return (engine,)
+
+
+@app.cell
+def _(mo):
+    mo.md("### Table Selection")
+    table_selector = mo.ui.dropdown(
+        options=["SentianceEventos", "MovDebug_Eventos"],
+        value="SentianceEventos",
+        label="Select Source Table"
+    )
+    table_selector
+    return (table_selector,)
 
 
 @app.cell
@@ -63,9 +80,9 @@ def _(mo):
 
 
 @app.cell
-def _(end_dt, engine, mo, sid_input, start_dt):
+def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
     # Prepare the query with filters
-    base_query = "SELECT TOP 100 * FROM VictaTMTK.dbo.SentianceEventos"
+    base_query = f"SELECT TOP 100 * FROM VictaTMTK.dbo.{table_selector.value}"
     where_clauses = []
     
     # Clean up and validate inputs
