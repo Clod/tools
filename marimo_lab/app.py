@@ -4,7 +4,7 @@ __generated_with = "0.19.2"
 app = marimo.App(width="full")
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     import marimo as mo
     import pandas as pd
@@ -13,14 +13,13 @@ def _():
     import leafmap
     import os
     from dotenv import load_dotenv
-    
+
     # Load environment variables from .env file
     load_dotenv()
-    
-    return json, leafmap, load_dotenv, mo, os, pd, sqlalchemy
+    return json, leafmap, mo, os, pd, sqlalchemy
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     # Welcome to Marimo! 🌊
@@ -28,7 +27,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("""
     ### SQL Server Connection
@@ -38,7 +37,7 @@ def _(mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(os, sqlalchemy):
     # Credentials are now loaded from the .env file for security
     server = os.getenv("DB_SERVER")
@@ -55,7 +54,7 @@ def _(os, sqlalchemy):
     return (engine,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("### Table Selection")
     table_selector = mo.ui.dropdown(
@@ -67,43 +66,43 @@ def _(mo):
     return (table_selector,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo):
     mo.md("### Data Filtering")
     sid_input = mo.ui.text(label="Sentiance ID", placeholder="Enter ID...")
     start_dt = mo.ui.datetime(label="Start Date/Time")
     end_dt = mo.ui.datetime(label="End Date/Time")
-    
+
     filter_ui = mo.hstack([sid_input, start_dt, end_dt], gap=2)
     filter_ui
-    return end_dt, filter_ui, sid_input, start_dt
+    return end_dt, sid_input, start_dt
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
     # Prepare the query with filters
     base_query = f"SELECT TOP 100 * FROM VictaTMTK.dbo.{table_selector.value}"
     where_clauses = []
-    
+
     # Clean up and validate inputs
     sid = sid_input.value.strip() if sid_input.value else None
     start = start_dt.value if start_dt.value else None
     end = end_dt.value if end_dt.value else None
-    
+
     if sid:
         where_clauses.append(f"sentianceid = '{sid}'")
-    
+
     if start:
         # standard ISO format works best with SQL Server
         where_clauses.append(f"fechahora >= '{start}'")
-    
+
     if end:
         where_clauses.append(f"fechahora <= '{end}'")
-        
+
     query = base_query
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
-    
+
     # Sorting by fechahora to see the most recent or chronological data
     query += " ORDER BY fechahora DESC"
 
@@ -117,14 +116,13 @@ def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
         output=False,
         engine=engine
     )
-    
+
     # Display the log
     query_log
-    
-    return df, query_log
+    return (df,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, mo):
     # Display the interactive table with single-row selection
     table = mo.ui.table(df, selection="single", label="Select a row to see details")
@@ -195,7 +193,7 @@ def _(json, mo, table):
 
 
 @app.cell(hide_code=True)
-def _(json, leafmap, mo, pd, table):
+def _(json, mo, pd, table):
     # Check if a row is selected
     geo_selected_row = table.value
 
@@ -287,7 +285,6 @@ def _(json, leafmap, mo, pd, table):
         geo_table_ui = None
         geo_df = None
         geo_data_found = []
-
     return geo_data_found, geo_df, geo_table_ui
 
 
@@ -299,7 +296,7 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
         if len(geo_table_ui.value) > 0:
             selected_item = geo_table_ui.value.iloc[0]
             orig_item = geo_df[geo_df["Source"] == selected_item["Source"]].iloc[0]
-            
+
             # Create map focused on selected item
             if orig_item["Kind"] == "Venue 📍":
                 m = leafmap.Map(backend="ipyleaflet", center=[orig_item["Lat"], orig_item["Lon"]], zoom=15, minimize_control=True)
@@ -311,7 +308,7 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
                     center_lat = sum(p[0] for p in pts) / len(pts)
                     center_lon = sum(p[1] for p in pts) / len(pts)
                     m = leafmap.Map(backend="ipyleaflet", center=[center_lat, center_lon], zoom=13, minimize_control=True)
-                    
+
                     coords = [[p["longitude"], p["latitude"]] for p in orig_item["Data"]["waypoints"]]
                     line_geojson = {
                         "type": "FeatureCollection",
@@ -332,7 +329,7 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
         else:
             # No selection - show all elements
             m = leafmap.Map(backend="ipyleaflet", center=[-34.6, -58.4], zoom=10, minimize_control=True)
-            
+
             for idx, row in geo_df.iterrows():
                 if row["Kind"] == "Venue 📍":
                     m.add_marker(location=[row["Lat"], row["Lon"]], tooltip=f"{row['Source']} ({row['GeoType'] or ''})")
@@ -373,7 +370,6 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
 
     geo_view
     return
-
 
 
 if __name__ == "__main__":
