@@ -38,7 +38,7 @@ def _(sqlalchemy):
     server = 'ltkbase003.cjo9vciowl0y.us-east-1.rds.amazonaws.com'
     database = 'VictaTMTK'
     username = 'ClaudioVicta'
-    password = 'CV2026$'
+    password = 'XXXX'
     port = 9433
 
     # Connection string for pymssql
