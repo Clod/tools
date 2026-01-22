@@ -208,10 +208,8 @@ You are analyzing for a PROGRAMMER. Provide:
 You are analyzing for a SOFTWARE ARCHITECT. Provide:
 1. **Type**: What SDK object is this?
 2. **Why Generated**: Why would the SDK create this record?
-3. **System Implications**: What are the architectural implications?
-4. **Data Flow**: How does this fit in the data pipeline?
-5. **Design Decisions**: What design patterns does this inform?
-6. **Next Steps**: What should the system do with this data?
+3. **Subrecord analysis**: Analyze the subrecords of this record. Give an explanation for each subrecord. Include the corresponging JSON
+4. **Your answer should be in Spanish before returning them**
 """
             
             prompt = f"""
