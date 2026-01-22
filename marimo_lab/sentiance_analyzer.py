@@ -28,8 +28,8 @@ def __():
         raise ValueError("❌ OPENROUTER_API_KEY not found in .env file")
     
     # Paths
-    DOCS_DIR = "docs/"
-    KEYWORDS_INDEX = "keywords.json"
+    DOCS_DIR = "/Users/claudiograsso/Documents/Sentiance/tools/scraper/scraped_site"
+    KEYWORDS_INDEX = "SALIDA.json"
     
     mo.md("# 🔍 Sentiance SDK JSON Analyzer")
     return OPENROUTER_API_KEY, OPENROUTER_BASE_URL, DOCS_DIR, KEYWORDS_INDEX, mo, json, os, Path, requests, re
@@ -38,8 +38,14 @@ def __():
 @app.cell
 def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
     """LLM API caller."""
+
+    # Model selection - CHANGE THIS TO SAVE MONEY
+    # MODEL = "google/gemini-2.0-flash-exp:free"  # FREE!
+    MODEL = "qwen/qwen-2.5-72b-instruct"      # $0.35/1M (best paid)
+    # MODEL = "mistralai/mistral-small"         # $0.20/1M (cheapest)
+    # MODEL = "meta-llama/llama-3.1-8b-instruct:free"  # FREE
     
-    def call_llm(prompt: str, model: str = "anthropic/claude-3.5-sonnet", max_tokens: int = 2048) -> str:
+    def call_llm(prompt: str, model: str = MODEL, max_tokens: int = 2048) -> str:
         """Call OpenRouter API."""
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -292,57 +298,70 @@ def __(view_selector):
 
 @app.cell
 def __(mo):
-    """Analyze button."""
+    # Step 1: Use run_button - specifically designed to trigger expensive cells
+    analyze_btn = mo.ui.run_button(
+        label="🚀 Analyze JSON", 
+        kind="success", 
+        full_width=True
+    )
     
-    analyze_button = mo.ui.button(label="🚀 Analyze JSON", kind="success")
-    
-    return analyze_button,
+    mo.md("### ⚙️ Step 2: Configure & Run")
+    analyze_btn
+    return (analyze_btn,)
 
 
 @app.cell
-def __(analyze_button):
-    analyze_button
-    return
-
-
-@app.cell
-def __(analyze_button, analyzer, json, json_input, mo, view_selector):
-    """Run analysis."""
+def __(analyze_btn, analyzer, json, json_input, mo, view_selector):
+    import traceback
+    import time
     
-    if analyze_button.value:
+    # This cell ONLY triggers when the run_button is clicked
+    ts = time.strftime("%H:%M:%S")
+    
+    if analyze_btn.value:
+        print(f"[{ts}] ⚡ REACTIVITY TRIGGERED: Analysis starting...")
+        
         try:
-            # Parse JSON input
-            json_obj = json.loads(json_input.value)
-            
-            mo.md("### 🔍 Analyzing...")
-            
-            # Run analysis
-            result = analyzer.analyze_json(json_obj, view=view_selector.value)
-            
-            # Display results
-            mo.md(f"""
-### ✅ Analysis Complete
+            raw_input = json_input.value.strip()
+            if not raw_input:
+                 print(f"[{ts}] ⚠️ Input empty.")
+                 rendered_output = mo.md("⚠️ **Please provide some JSON data**")
+            else:
+                json_obj = json.loads(raw_input)
+                print(f"[{ts}] 📝 JSON Parsed. Calling Analyzer...")
+                
+                with mo.status.spinner(title="Contacting AI...") as status_box:
+                    result = analyzer.analyze_json(json_obj, view=view_selector.value)
+                    
+                    print(f"[{ts}] ✅ LLM returned result.")
+                    rendered_output = mo.md(f"""
+### ✅ Analysis Complete (at {ts})
 
-**JSON Keywords Extracted:** {', '.join(result['json_keywords'][:10])}
-
-**Selected Documentation Files:**
-{chr(10).join(f'- {f}' for f in result['selected_files'])}
+**Keywords:** {', '.join(result['json_keywords'][:8])}
+**Docs Used:** {', '.join(result['selected_files'])}
 
 ---
 
-### 📊 Analysis Result:
-
 {result['analysis']}
 """)
-            
+                 
         except json.JSONDecodeError as e:
-            mo.md(f"❌ **Invalid JSON**: {e}")
+            print(f"[{ts}] ❌ JSON Error: {e}")
+            rendered_output = mo.md(f"❌ **Invalid JSON**: {e}")
         except Exception as e:
-            mo.md(f"❌ **Error**: {e}")
+            print(f"[{ts}] ❌ Critical Error: {e}")
+            rendered_output = mo.vstack([
+                mo.md(f"❌ **Error**: {e}"),
+                mo.accordion({"Technical Traceback": mo.md(f"```python\n{traceback.format_exc()}\n```")})
+            ])
+        finally:
+            print(f"[{ts}] 🏁 Analysis cell execution finished.")
     else:
-        mo.md("_Click 'Analyze JSON' to start_")
-    
-    return
+        rendered_output = mo.md("_Paste JSON above and click 'Analyze JSON' to start_")
+
+    # Final expression for Marimo to display
+    rendered_output
+    return (rendered_output,)
 
 
 @app.cell

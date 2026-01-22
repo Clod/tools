@@ -843,6 +843,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pymssql" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "ruff" },
     { name = "sqlalchemy" },
 ]
@@ -854,6 +855,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.3.3" },
     { name = "pymssql", specifier = ">=2.3.11" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "requests", specifier = ">=2.32.5" },
     { name = "ruff", specifier = ">=0.14.13" },
     { name = "sqlalchemy", specifier = ">=2.0.45" },
 ]
