@@ -1,0 +1,12 @@
+[project]
+name = "sentiance-scraper"
+version = "0.1.0"
+description = "Web scraper for Sentiance documentation"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "aiohttp>=3.11.0",
+    "beautifulsoup4>=4.12.3",
+    "crawl4ai>=0.4.247",
+    "lxml>=5.3.0",
+]
