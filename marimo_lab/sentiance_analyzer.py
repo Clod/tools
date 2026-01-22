@@ -1,0 +1,400 @@
+import marimo
+
+__generated_with = "0.9.14"
+app = marimo.App()
+
+
+@app.cell
+def __():
+    """Setup and imports."""
+    import marimo as mo
+    import json
+    import os
+    from pathlib import Path
+    import requests
+    import re
+    from typing import Dict, List, Any
+    from dotenv import load_dotenv
+    
+    # Load .env file
+    load_dotenv()
+    
+    # OpenRouter config
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+    
+    # Validate API key
+    if not OPENROUTER_API_KEY:
+        raise ValueError("❌ OPENROUTER_API_KEY not found in .env file")
+    
+    # Paths
+    DOCS_DIR = "docs/"
+    KEYWORDS_INDEX = "keywords.json"
+    
+    mo.md("# 🔍 Sentiance SDK JSON Analyzer")
+    return OPENROUTER_API_KEY, OPENROUTER_BASE_URL, DOCS_DIR, KEYWORDS_INDEX, mo, json, os, Path, requests, re
+
+
+@app.cell
+def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
+    """LLM API caller."""
+    
+    def call_llm(prompt: str, model: str = "anthropic/claude-3.5-sonnet", max_tokens: int = 2048) -> str:
+        """Call OpenRouter API."""
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8080",
+            "X-Title": "Sentiance Analyzer"
+        }
+        
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens
+        }
+        
+        response = requests.post(OPENROUTER_BASE_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        
+        return response.json()["choices"][0]["message"]["content"]
+    
+    return call_llm,
+
+
+@app.cell
+def __(KEYWORDS_INDEX, json):
+    """Load keyword index."""
+    
+    with open(KEYWORDS_INDEX, 'r') as f:
+        keyword_index = json.load(f)
+    
+    print(f"✅ Loaded keyword index: {len(keyword_index)} files")
+    print(f"📝 Sample: {list(keyword_index.items())[:2]}")
+    
+    return keyword_index,
+
+
+@app.cell
+def __(DOCS_DIR, Path, call_llm, json, keyword_index, re):
+    """Main analyzer class."""
+    
+    class SentianceAnalyzer:
+        def __init__(self, keyword_index: dict, docs_dir: str):
+            self.keyword_index = keyword_index
+            self.docs_dir = docs_dir
+            self._file_cache = {}
+        
+        def analyze_json(self, json_obj: dict, view: str = "programmer") -> dict:
+            """
+            Full pipeline: JSON → keyword match → select docs → analyze
+            """
+            
+            # Step 1: Extract keywords from JSON
+            json_keywords = self._extract_json_keywords(json_obj)
+            print(f"🔑 JSON keywords: {json_keywords}")
+            
+            # Step 2: LLM picks best files from keyword index
+            selected_files = self._llm_select_files(json_obj, json_keywords)
+            print(f"📄 Selected files: {selected_files}")
+            
+            # Step 3: Read selected files
+            docs_content = self._read_files(selected_files)
+            print(f"📖 Read {len(docs_content)} files ({sum(len(v) for v in docs_content.values())} chars)")
+            
+            # Step 4: LLM final analysis
+            analysis = self._llm_analyze(json_obj, docs_content, view)
+            
+            return {
+                "json_keywords": json_keywords,
+                "selected_files": selected_files,
+                "analysis": analysis
+            }
+        
+        def _extract_json_keywords(self, json_obj: dict) -> list:
+            """Extract keywords from JSON fields."""
+            keywords = []
+            
+            def extract_recursive(obj, prefix=""):
+                if isinstance(obj, dict):
+                    for key, value in obj.items():
+                        keywords.append(key)
+                        if isinstance(value, str):
+                            keywords.append(value)
+                        extract_recursive(value, key)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        extract_recursive(item, prefix)
+            
+            extract_recursive(json_obj)
+            return list(set(keywords))
+        
+        def _llm_select_files(self, json_obj: dict, json_keywords: list) -> list:
+            """LLM picks best files using keyword index."""
+            
+            # Truncate keyword index if too large
+            index_str = json.dumps(self.keyword_index, indent=2)
+            if len(index_str) > 10000:
+                index_str = index_str[:10000] + "\n... (truncated)"
+            
+            prompt = f"""
+Analyze this Sentiance SDK JSON:
+{json.dumps(json_obj, indent=2)}
+
+JSON keywords extracted: {json_keywords}
+
+Available documentation files with their keywords:
+{index_str}
+
+Select TOP 3-4 MOST RELEVANT files for analyzing this JSON.
+Prioritize files whose keywords match the JSON fields.
+
+Return ONLY a JSON array of filenames:
+["filename1.md", "filename2.md", "filename3.md"]
+
+No explanations, just the JSON array.
+"""
+            
+            response = call_llm(prompt, max_tokens=512)
+            
+            # Extract JSON array
+            json_match = re.search(r'\[.*?\]', response, re.DOTALL)
+            if json_match:
+                selected = json.loads(json_match.group())
+                return selected[:4]  # Max 4 files
+            
+            return []
+        
+        def _read_files(self, filenames: list) -> dict:
+            """Read selected documentation files."""
+            docs_content = {}
+            
+            for filename in filenames:
+                filepath = Path(self.docs_dir) / filename
+                
+                if not filepath.exists():
+                    print(f"⚠️  File not found: {filename}")
+                    continue
+                
+                if filename not in self._file_cache:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        # Read first 3000 chars per file
+                        self._file_cache[filename] = f.read()[:3000]
+                
+                docs_content[filename] = self._file_cache[filename]
+            
+            return docs_content
+        
+        def _llm_analyze(self, json_obj: dict, docs_content: dict, view: str) -> str:
+            """LLM analyzes JSON using selected documentation."""
+            
+            if view == "programmer":
+                perspective = """
+You are analyzing for a PROGRAMMER. Provide:
+1. **Type**: What SDK object is this?
+2. **Why Generated**: Why would the SDK create this record?
+3. **Field Meanings**: What does each field mean (from the docs)?
+4. **Data Quality**: Is this a valid record? Any issues?
+5. **How to Use**: What should a programmer do with this data?
+"""
+            else:  # architect
+                perspective = """
+You are analyzing for a SOFTWARE ARCHITECT. Provide:
+1. **Type**: What SDK object is this?
+2. **Why Generated**: Why would the SDK create this record?
+3. **System Implications**: What are the architectural implications?
+4. **Data Flow**: How does this fit in the data pipeline?
+5. **Design Decisions**: What design patterns does this inform?
+6. **Next Steps**: What should the system do with this data?
+"""
+            
+            prompt = f"""
+{perspective}
+
+JSON to analyze:
+{json.dumps(json_obj, indent=2)}
+
+ACTUAL SENTIANCE DOCUMENTATION (from disk):
+
+{self._format_docs(docs_content)}
+
+Based on the ACTUAL DOCUMENTATION above, provide a detailed analysis.
+Use clear formatting with headers and bullet points.
+"""
+            
+            response = call_llm(prompt, max_tokens=2048)
+            return response
+        
+        def _format_docs(self, docs_content: dict) -> str:
+            """Format docs for LLM prompt."""
+            formatted = []
+            for filename, content in docs_content.items():
+                formatted.append(f"### File: {filename}\n{content}\n")
+            return "\n".join(formatted)
+    
+    # Initialize analyzer
+    analyzer = SentianceAnalyzer(keyword_index, DOCS_DIR)
+    
+    return SentianceAnalyzer, analyzer
+
+
+@app.cell
+def __(mo):
+    """Input: JSON to analyze."""
+    
+    mo.md("""
+    ## 📋 Input JSON
+    Paste your Sentiance SDK JSON below:
+    """)
+    
+    json_input = mo.ui.text_area(
+        placeholder="""{
+  "event_type": "TRANSPORT",
+  "transport_mode": "CAR",
+  "distance": 12.5,
+  "duration": 3600,
+  "start_location": {"lat": 40.7128, "lon": -74.0060}
+}""",
+        rows=10,
+        full_width=True
+    )
+    
+    return json_input,
+
+
+@app.cell
+def __(json_input):
+    """Display input."""
+    json_input
+    return
+
+
+@app.cell
+def __(mo):
+    """View selector."""
+    
+    mo.md("## 👁️ Analysis View")
+    
+    view_selector = mo.ui.dropdown(
+        options=["programmer", "architect"],
+        value="programmer",
+        label="Select perspective:"
+    )
+    
+    return view_selector,
+
+
+@app.cell
+def __(view_selector):
+    view_selector
+    return
+
+
+@app.cell
+def __(mo):
+    """Analyze button."""
+    
+    analyze_button = mo.ui.button(label="🚀 Analyze JSON", kind="success")
+    
+    return analyze_button,
+
+
+@app.cell
+def __(analyze_button):
+    analyze_button
+    return
+
+
+@app.cell
+def __(analyze_button, analyzer, json, json_input, mo, view_selector):
+    """Run analysis."""
+    
+    if analyze_button.value:
+        try:
+            # Parse JSON input
+            json_obj = json.loads(json_input.value)
+            
+            mo.md("### 🔍 Analyzing...")
+            
+            # Run analysis
+            result = analyzer.analyze_json(json_obj, view=view_selector.value)
+            
+            # Display results
+            mo.md(f"""
+### ✅ Analysis Complete
+
+**JSON Keywords Extracted:** {', '.join(result['json_keywords'][:10])}
+
+**Selected Documentation Files:**
+{chr(10).join(f'- {f}' for f in result['selected_files'])}
+
+---
+
+### 📊 Analysis Result:
+
+{result['analysis']}
+""")
+            
+        except json.JSONDecodeError as e:
+            mo.md(f"❌ **Invalid JSON**: {e}")
+        except Exception as e:
+            mo.md(f"❌ **Error**: {e}")
+    else:
+        mo.md("_Click 'Analyze JSON' to start_")
+    
+    return
+
+
+@app.cell
+def __(mo):
+    """Example JSONs."""
+    
+    mo.md("""
+    ---
+    
+    ## 📚 Example JSONs
+    
+    ### Transport Event
+    ```json
+    {
+      "event_type": "TRANSPORT",
+      "transport_mode": "CAR",
+      "distance": 12.5,
+      "duration": 3600,
+      "start_location": {"lat": 40.7128, "lon": -74.0060},
+      "end_location": {"lat": 40.7589, "lon": -73.9851}
+    }
+    ```
+    
+    ### Crash Event
+    ```json
+    {
+      "crash_severity": "SEVERE",
+      "timestamp": 1621500000000,
+      "location": {"lat": 40.7128, "lon": -74.0060},
+      "user_activity": "DRIVING",
+      "diagnostic": {
+        "max_impact_magnitude": 45.2,
+        "impact_direction": "FRONT",
+        "time_to_impact": 0.15
+      }
+    }
+    ```
+    
+    ### SDK Status
+    ```json
+    {
+      "detection_status": "ENABLED_AND_DETECTING",
+      "can_detect": true,
+      "location_permission": "GRANTED",
+      "location_setting": "HIGH_ACCURACY",
+      "battery_optimization_setting": "UNRESTRICTED"
+    }
+    ```
+    """)
+    
+    return
+
+
+if __name__ == "__main__":
+    app.run()
