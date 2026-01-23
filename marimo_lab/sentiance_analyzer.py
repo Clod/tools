@@ -1,5 +1,14 @@
 import marimo
 
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "marimo",
+#     "requests",
+#     "python-dotenv",
+# ]
+# ///
+
 __generated_with = "0.9.14"
 app = marimo.App()
 
