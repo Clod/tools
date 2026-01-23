@@ -149,7 +149,7 @@ Analyze this Sentiance SDK JSON:
 
 JSON keywords extracted: {json_keywords}
 
-Available documentation files with their keywords:
+Available documentation files with their keywords (the FIRST element of each list is the Source URL):
 {index_str}
 
 Select TOP 3-4 MOST RELEVANT files for analyzing this JSON.

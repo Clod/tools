@@ -76,16 +76,20 @@ def build_keyword_index(docs_dir: str, output_path: str = "keywords.json"):
         
         # Ask LLM to extract keywords
         prompt = f"""
-Extract TOP 10 KEYWORDS for each documentation file below.
-Keywords should be: class names, method names, field names, event types, SDK concepts.
+Extract the Source URL and TOP 10 KEYWORDS for each documentation file below.
+Each file starts with "Source: <URL>".
+
+For each file, return an array where:
+1. The FIRST element is the absolute URL found after "Source: ".
+2. The remaining elements are technical keywords (class names, method names, fields, SDK concepts).
 
 Files and their content (first 2000 chars):
 {json.dumps(files_content, indent=2)}
 
 Return ONLY valid JSON (no markdown, no explanations):
 {{
-  "filename1.md": ["keyword1", "keyword2", "keyword3", ...],
-  "filename2.md": ["keyword1", "keyword2", ...]
+  "filename1.md": ["https://docs.sentiance.com/...", "keyword1", "keyword2", ...],
+  "filename2.md": ["https://docs.sentiance.com/...", "keyword1", "keyword2", ...]
 }}
 
 Focus on technical terms, API names, and domain concepts.
