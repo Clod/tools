@@ -66,7 +66,8 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": max_tokens
+            "max_tokens": max_tokens,
+            "temperature": 0
         }
         
         response = requests.post(OPENROUTER_BASE_URL, headers=headers, json=payload)
@@ -203,36 +204,43 @@ No explanations, just the JSON array.
         def _llm_analyze(self, json_obj: dict, docs_content: dict, view: str) -> str:
             """LLM analyzes JSON using selected documentation."""
             
+            common_instructions = """
+INSTRUCCIONES IMPORTANTES:
+1. Comienza tu respuesta con una sección titulada "### 🔗 Documentación Utilizada" listando los links (URLs) de origen de todos los archivos proporcionados. Estos links se encuentran al principio de cada archivo como "Source: <URL>".
+2. Proporciona toda tu respuesta en ESPAÑOL.
+"""
+
             if view == "programmer":
-                perspective = """
-You are analyzing for a PROGRAMMER. Provide:
-1. **Type**: What SDK object is this?
-2. **Why Generated**: Why would the SDK create this record?
-3. **Field Meanings**: What does each field mean (from the docs)?
-4. **Data Quality**: Is this a valid record? Any issues?
-5. **How to Use**: What should a programmer do with this data?
+                perspective = f"""
+{common_instructions}
+Estás analizando para un PROGRAMADOR. Proporciona:
+1. **Tipo**: ¿Qué objeto del SDK es este?
+2. **Por qué se generó**: ¿Por qué el SDK crearía este registro?
+3. **Significado de los campos**: ¿Qué significa cada campo (según la documentación)?
+4. **Calidad de los datos**: ¿Es un registro válido? ¿Algún problema?
+5. **Cómo usarlo**: ¿Qué debe hacer un programador con estos datos?
 """
             else:  # architect
-                perspective = """
-You are analyzing for a SOFTWARE ARCHITECT. Provide:
-1. **Type**: What SDK object is this?
-2. **Why Generated**: Why would the SDK create this record?
-3. **Subrecord analysis**: Analyze the subrecords of this record. Give an explanation for each subrecord. Include the corresponging JSON
-4. **Your answer should be in Spanish before returning them**
+                perspective = f"""
+{common_instructions}
+Estás analizando para un ARQUITECTO DE SOFTWARE. Proporciona:
+1. **Tipo**: ¿Qué objeto del SDK es este?
+2. **Por qué se generó**: ¿Por qué el SDK crearía este registro?
+3. **Análisis de sub-registros**: Analiza los sub-registros de este registro. Da una explicación para cada uno e incluye el JSON correspondiente.
 """
             
             prompt = f"""
 {perspective}
 
-JSON to analyze:
+JSON a analizar:
 {json.dumps(json_obj, indent=2)}
 
-ACTUAL SENTIANCE DOCUMENTATION (from disk):
+DOCUMENTACIÓN REAL DE SENTIANCE (extraída de los archivos):
 
 {self._format_docs(docs_content)}
 
-Based on the ACTUAL DOCUMENTATION above, provide a detailed analysis.
-Use clear formatting with headers and bullet points.
+Basado en la DOCUMENTACIÓN REAL anterior, proporciona un análisis detallado.
+Usa un formato claro con encabezados y viñetas.
 """
             
             response = call_llm(prompt, max_tokens=2048)

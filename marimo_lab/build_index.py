@@ -34,7 +34,8 @@ def call_openrouter(prompt: str, model: str = MODEL) -> str:
     
     payload = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}]
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
     }
     
     response = requests.post(OPENROUTER_BASE_URL, headers=headers, json=payload)
