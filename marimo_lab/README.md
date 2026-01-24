@@ -15,11 +15,11 @@ Un notebook interactivo que permite navegar por los eventos almacenados en SQL S
 ### 2. Analizador de JSON con IA (`sentiance_analyzer.py`)
 Notebook diseñado para pegar un objeto JSON de estado o evento y recibir un análisis detallado basado en la documentación oficial.
 *   **Funcionalidades**:
-    *   Extracción de palabras clave del JSON.
-    *   Búsqueda inteligente en el índice de documentación (`SALIDA.json`).
-    *   **Inyección de Contexto Global**: Incorpora automáticamente conceptos fundamentales del SDK (cargados desde `concepts.json`) en cada análisis.
-    *   Análisis contextual mediante modelos de IA (vía OpenRouter) con temperatura 0 para reproducibilidad.
-    *   Soporte para perfiles de visualización (Programador vs. Usuario Final).
+    *   **Motor Gemini 2.0 Flash**: Migrado a `google/gemini-2.0-flash-001` para máxima velocidad, contexto masivo y cero errores de rate-limit.
+    *   **Sistema de Logging Avanzado**: Incluye un "Debug Toggle" en la UI para ver trazas detalladas en tiempo real y diagnósticos de API.
+    *   **Optimización de Tokens**: Limpieza inteligente de ruido en Markdown y selección dinámica de los top-10 conceptos globales.
+    *   Extracción de palabras clave y búsqueda en índice `SALIDA.json`.
+    *   Soporte para perfiles de visualización (Programador vs. Arquitecto).
 
 ### 3. Clasificador de Conceptos (`classify_concepts.py`)
 Script que utiliza IA para identificar cuáles de los archivos de documentación son explicaciones conceptuales de alto nivel.
