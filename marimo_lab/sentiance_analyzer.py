@@ -19,6 +19,7 @@ def __():
     import marimo as mo
     import json
     import os
+    import logging
     from pathlib import Path
     import requests
     import re
@@ -32,17 +33,37 @@ def __():
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
     
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger("sentiance_analyzer")
+    
     # Validate API key
     if not OPENROUTER_API_KEY:
         raise ValueError("❌ OPENROUTER_API_KEY not found in .env file")
     
-    # Paths
+    # Paths - Use absolute paths for sandbox safety
+    BASE_DIR = "/Users/claudiograsso/Documents/Sentiance/tools/marimo_lab"
     DOCS_DIR = "/Users/claudiograsso/Documents/Sentiance/tools/scraper/scraped_site"
-    KEYWORDS_INDEX = "SALIDA.json"
-    CONCEPTS_FILE = "concepts.json"
+    KEYWORDS_INDEX = os.path.join(BASE_DIR, "SALIDA.json")
+    CONCEPTS_FILE = os.path.join(BASE_DIR, "concepts.json")
     
     mo.md("# 🔍 Sentiance SDK JSON Analyzer")
-    return OPENROUTER_API_KEY, OPENROUTER_BASE_URL, CONCEPTS_FILE, DOCS_DIR, KEYWORDS_INDEX, mo, json, os, Path, requests, re
+    return (
+        BASE_DIR,
+        CONCEPTS_FILE,
+        DOCS_DIR,
+        KEYWORDS_INDEX,
+        mo,
+        json,
+        os,
+        Path,
+        requests,
+        re,
+        logging,
+        logger,
+        OPENROUTER_API_KEY,
+        OPENROUTER_BASE_URL,
+    )
 
 
 @app.cell
@@ -54,6 +75,7 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
     MODEL = "qwen/qwen-2.5-72b-instruct"      # $0.35/1M (best paid)
     # MODEL = "mistralai/mistral-small"         # $0.20/1M (cheapest)
     # MODEL = "meta-llama/llama-3.1-8b-instruct:free"  # FREE
+    MODEL = "google/gemini-2.0-flash-001"
     
     def call_llm(prompt: str, model: str = MODEL, max_tokens: int = 2048) -> str:
         """Call OpenRouter API."""
@@ -72,7 +94,12 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
         }
         
         response = requests.post(OPENROUTER_BASE_URL, headers=headers, json=payload)
-        response.raise_for_status()
+        
+        try:
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"LLM API Error: {response.text}")
+            raise e
         
         return response.json()["choices"][0]["message"]["content"]
     
@@ -114,16 +141,81 @@ def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, re):
             # Pre-load conceptual content
             self._load_global_context()
         
+        def clean_markdown_content(self, text: str) -> str:
+            """
+            Strips navigation noise, logos, and flattens links to save tokens.
+            Preserves the 'Source: <URL>' line.
+            """
+            lines = text.split('\n')
+            cleaned_lines = []
+            
+            # 1. Patterns to skip entirely
+            skip_patterns = [
+                r'^bars\[!\[Logo\]', # GitBook logo/nav header
+                r'^search$',
+                r'^circle-xmark$',
+                r'^`Ctrl``k`$',
+                r'^Moreellipsischevron-down$',
+                r'^chevron-upchevron-down$',
+                r'^\[gitbookPowered by GitBook\]',
+                r'^xmark$',
+                r'^block-quoteOn this page',
+                r'^sun-brightdesktopmoon$',
+                r'^copyCopychevron-down$',
+                r'^\[hashtag\]',
+                r'^circle-exclamation$',
+                r'^circle-info$',
+                r'^\[Previous.*\]\(.*\)', # Nav links
+                r'^\[Next.*\]\(.*\)',
+                r'^Last updated .* ago$',
+            ]
+            
+            # 2. Sidebar/Menu link pattern: '* [Text](https://docs.sentiance.com/...)'
+            menu_link_pattern = re.compile(r'^\s*\* \[.*\]\(https://docs\.sentiance\.com/.*\)$')
+            
+            for line in lines:
+                line_trimmed = line.strip()
+                
+                # Keep Source URL
+                if line_trimmed.startswith("Source:"):
+                    cleaned_lines.append(line)
+                    continue
+                
+                # Skip noise patterns
+                if any(re.search(p, line_trimmed) for p in skip_patterns):
+                    continue
+                
+                # Skip menu/sidebar links
+                if menu_link_pattern.match(line_trimmed):
+                    continue
+                
+                # 3. Flatten links: [Text](URL) -> Text (except for things that look like actual info)
+                # But keep code blocks as is
+                if '```' not in line:
+                    line = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', line)
+                
+                # 4. Remove image markers
+                line = re.sub(r'!\[[^\]]*\]\([^\)]+\)', '', line)
+                
+                if line.strip() or (cleaned_lines and cleaned_lines[-1].strip()):
+                    cleaned_lines.append(line)
+            
+            return '\n'.join(cleaned_lines)
+
         def _load_global_context(self):
-            """Load the content of conceptual files into memory once."""
+            """Load a subset of conceptual files to avoid token bloat (max 10)."""
             contents = []
-            for filename in self.global_concepts:
+            # Sort concepts to be deterministic, pick top 10 (likely core summaries)
+            for filename in sorted(self.global_concepts)[:10]:
                 filepath = Path(self.docs_dir) / filename
                 if filepath.exists():
                     with open(filepath, 'r', encoding='utf-8') as f:
-                        # Take only first 2000 chars of each concept to avoid bloat
-                        contents.append(f"### CONCEPT: {filename}\n{f.read()[:2000]}")
+                        # Clean and truncate
+                        raw_text = f.read()[:2000]
+                        cleaned_text = self.clean_markdown_content(raw_text)
+                        contents.append(f"### CONCEPT: {filename}\n{cleaned_text}")
             self._conceptual_content = "\n\n".join(contents)
+            logger.info(f"Global context loaded: {len(contents)} conceptual files (~{len(self._conceptual_content)} chars)")
         
         def analyze_json(self, json_obj: dict, view: str = "programmer") -> dict:
             """
@@ -132,18 +224,19 @@ def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, re):
             
             # Step 1: Extract keywords from JSON
             json_keywords = self._extract_json_keywords(json_obj)
-            print(f"🔑 JSON keywords: {json_keywords}")
+            logger.debug(f"🔑 JSON keywords: {json_keywords}")
             
             # Step 2: LLM picks best files from keyword index
             selected_files = self._llm_select_files(json_obj, json_keywords)
-            print(f"📄 Selected files: {selected_files}")
+            logger.info(f"📄 Selected files: {selected_files}")
             
             # Step 3: Read selected files
             docs_content = self._read_files(selected_files)
-            print(f"📖 Read {len(docs_content)} files ({sum(len(v) for v in docs_content.values())} chars)")
+            logger.debug(f"📖 Read {len(docs_content)} files ({sum(len(v) for v in docs_content.values())} chars)")
             
             # Step 4: LLM final analysis
             analysis = self._llm_analyze(json_obj, docs_content, view)
+            logger.info(f"Analysis complete (Length: {len(analysis)})")
             
             return {
                 "json_keywords": json_keywords,
@@ -186,22 +279,30 @@ JSON keywords extracted: {json_keywords}
 Available documentation files with their keywords (the FIRST element of each list is the Source URL):
 {index_str}
 
-Select TOP 3-4 MOST RELEVANT files for analyzing this JSON.
-Prioritize files whose keywords match the JSON fields.
-
-Return ONLY a JSON array of filenames:
 ["filename1.md", "filename2.md", "filename3.md"]
 
 No explanations, just the JSON array.
 """
             
-            response = call_llm(prompt, max_tokens=512)
+            # Debug: Log the prompt
+            logger.debug(f"Router Prompt (Length: {len(prompt)} chars). Head:\n{prompt[:500]}...")
+            
+            # Use Gemini 2.0 Flash (User Requested)
+            response = call_llm(prompt, model="google/gemini-2.0-flash-001", max_tokens=1024)
+            
+            # Debug: Log raw response
+            logger.debug(f"Router Raw Response:\n{response}")
             
             # Extract JSON array
             json_match = re.search(r'\[.*?\]', response, re.DOTALL)
             if json_match:
-                selected = json.loads(json_match.group())
-                return selected[:4]  # Max 4 files
+                try:
+                    selected = json.loads(json_match.group())
+                    return selected[:4]  # Max 4 files
+                except json.JSONDecodeError as e:
+                    logger.error(f"Router JSON Parse Error: {e}")
+            else:
+                logger.warning("Router Regex Failed to find JSON array")
             
             return []
         
@@ -213,13 +314,15 @@ No explanations, just the JSON array.
                 filepath = Path(self.docs_dir) / filename
                 
                 if not filepath.exists():
-                    print(f"⚠️  File not found: {filename}")
+                    logger.warning(f"File not found: {filename}")
                     continue
                 
                 if filename not in self._file_cache:
                     with open(filepath, 'r', encoding='utf-8') as f:
-                        # Read first 3000 chars per file
-                        self._file_cache[filename] = f.read()[:3000]
+                        # Read and clean content
+                        raw_text = f.read()[:4000]
+                        self._file_cache[filename] = self.clean_markdown_content(raw_text)
+                        logger.debug(f"Cached cleaner version of {filename}")
                 
                 docs_content[filename] = self._file_cache[filename]
             
@@ -271,7 +374,17 @@ Basado en la DOCUMENTACIÓN REAL anterior, proporciona un análisis detallado.
 Usa un formato claro con encabezados y viñetas.
 """
             
+            # Debug: Log analysis prompt
+            logger.debug(f"Analysis Prompt (Length: {len(prompt)} chars). Head:\n{prompt[:500]}...")
+            
             response = call_llm(prompt, max_tokens=2048)
+            
+            # Debug: Log analysis response
+            if not response:
+                logger.error("Analysis Response is EMPTY!")
+            else:
+                logger.debug(f"Analysis Raw Response (Length: {len(response)} chars)")
+            
             return response
         
         def _format_docs(self, docs_content: dict) -> str:
@@ -313,8 +426,35 @@ def __(mo):
 
 @app.cell
 def __(json_input):
-    """Display input."""
     json_input
+    return
+
+
+@app.cell
+def __(mo):
+    """Debug toggle definition."""
+    debug_toggle = mo.ui.checkbox(label="Enable Debug Logs (Verbose Console Output)", value=False)
+    debug_toggle
+    return debug_toggle,
+
+
+@app.cell
+def __(debug_toggle, logging, logger):
+    """React to debug toggle."""
+    # Apply toggle
+    if debug_toggle.value:
+        # Enable debug for OUR logger
+        logger.setLevel(logging.DEBUG)
+        
+        # Suppress noise from libraries
+        logging.getLogger("markdown").setLevel(logging.WARNING)
+        logging.getLogger("pymdownx").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        
+        logger.debug("Debug logging ENABLED (External noise suppressed)")
+    else:
+        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.INFO)
     return
 
 
@@ -362,43 +502,51 @@ def __(analyze_btn, analyzer, json, json_input, mo, view_selector):
     ts = time.strftime("%H:%M:%S")
     
     if analyze_btn.value:
-        print(f"[{ts}] ⚡ REACTIVITY TRIGGERED: Analysis starting...")
+        logger.info(f"⚡ Analysis starting (Triggered at {ts})")
         
         try:
             raw_input = json_input.value.strip()
             if not raw_input:
-                 print(f"[{ts}] ⚠️ Input empty.")
+                 logger.warning("Empty JSON input provided")
                  rendered_output = mo.md("⚠️ **Please provide some JSON data**")
             else:
                 json_obj = json.loads(raw_input)
-                print(f"[{ts}] 📝 JSON Parsed. Calling Analyzer...")
+                logger.info("JSON input successfully parsed")
                 
                 with mo.status.spinner(title="Contacting AI...") as status_box:
                     result = analyzer.analyze_json(json_obj, view=view_selector.value)
-                    
-                    print(f"[{ts}] ✅ LLM returned result.")
-                    rendered_output = mo.md(f"""
+                
+                logger.info("LLM Pipeline complete")
+                
+                # Check for empty analysis body
+                if not result.get('analysis'):
+                    logger.error("LLM returned an empty analysis string!")
+                    analysis_body = "⚠️ *The AI failed to generate an analysis. Check logs for details.*"
+                else:
+                    analysis_body = result['analysis']
+
+                rendered_output = mo.md(f"""
 ### ✅ Analysis Complete (at {ts})
 
 **Keywords:** {', '.join(result['json_keywords'][:8])}
-**Docs Used:** {', '.join(result['selected_files'])}
+**Docs Used:** {', '.join(result['selected_files']) if result['selected_files'] else 'None found'}
 
 ---
 
-{result['analysis']}
+{analysis_body}
 """)
                  
         except json.JSONDecodeError as e:
-            print(f"[{ts}] ❌ JSON Error: {e}")
+            logger.error(f"JSON Decode Error: {e}")
             rendered_output = mo.md(f"❌ **Invalid JSON**: {e}")
         except Exception as e:
-            print(f"[{ts}] ❌ Critical Error: {e}")
+            logger.error(f"Critical Exception: {e}\n{traceback.format_exc()}")
             rendered_output = mo.vstack([
                 mo.md(f"❌ **Error**: {e}"),
                 mo.accordion({"Technical Traceback": mo.md(f"```python\n{traceback.format_exc()}\n```")})
             ])
         finally:
-            print(f"[{ts}] 🏁 Analysis cell execution finished.")
+            logger.info("🏁 Analysis cell completion")
     else:
         rendered_output = mo.md("_Paste JSON above and click 'Analyze JSON' to start_")
 
