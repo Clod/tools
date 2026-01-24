@@ -19,7 +19,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Model selection
-MODEL = "qwen/qwen-2.5-72b-instruct"
+MODEL = "google/gemini-2.0-flash-001"
 
 def call_openrouter(prompt: str, model: str = MODEL) -> str:
     """Call OpenRouter API."""
@@ -77,8 +77,12 @@ def classify_documentation(docs_dir: str, output_path: str = "concepts.json"):
         prompt = f"""
 Classify each Sentiance SDK documentation file as either "CONCEPTUAL" or "REFERENCE".
 
-- **CONCEPTUAL**: High-level overviews, architectural explanations, "getting started" guides, definitions of core SDK concepts (User Context, Timeline, Detections, etc.).
-- **REFERENCE**: Specific API method documentation, error codes, constant lists, platform-specific implementation details (Podfiles, Gradle configs).
+- **CONCEPTUAL**: 
+    - Theory, core logic behavior, and high-level definitions (e.g., "How detection works", "What is an event?", "Understanding Timeline").
+    - **EXCLUDE**: "How-to" guides, simple set up steps, platform-specific code snippets.
+- **REFERENCE**: 
+    - Integration guides (Android/iOS setup), API Reference, release notes, typical "Usage" or "Getting Started" if it's just code steps.
+    - Specific configuration details (permissions, gradle, plist).
 
 Files to classify:
 {json.dumps(files_summary, indent=2)}
