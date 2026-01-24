@@ -17,10 +17,16 @@ Notebook diseñado para pegar un objeto JSON de estado o evento y recibir un an�
 *   **Funcionalidades**:
     *   Extracción de palabras clave del JSON.
     *   Búsqueda inteligente en el índice de documentación (`SALIDA.json`).
-    *   Análisis contextual mediante modelos de IA (vía OpenRouter).
+    *   **Inyección de Contexto Global**: Incorpora automáticamente conceptos fundamentales del SDK (cargados desde `concepts.json`) en cada análisis.
+    *   Análisis contextual mediante modelos de IA (vía OpenRouter) con temperatura 0 para reproducibilidad.
     *   Soporte para perfiles de visualización (Programador vs. Usuario Final).
 
-### 3. Constructor de Índice (`build_index.py`)
+### 3. Clasificador de Conceptos (`classify_concepts.py`)
+Script que utiliza IA para identificar cuáles de los archivos de documentación son explicaciones conceptuales de alto nivel.
+*   **Propósito**: Crear una base de conocimientos "global" que se incluya en todos los análisis para dar contexto sobre el funcionamiento general del SDK.
+*   **Genera**: `concepts.json`.
+
+### 4. Constructor de Índice (`build_index.py`)
 Script de utilidad para procesar la documentación scrapeada y generar un índice técnico.
 *   **Funcionalidades**:
     *   Lee los archivos markdown de la documentación.
@@ -47,7 +53,12 @@ Se recomienda el uso de `uv` para una gestión sencilla de dependencias.
     DB_PASS=contraseña
     ```
 
-### Paso 1: Construir el índice de documentación
+### Paso 1: Clasificar conceptos globales (Opcional si ya existe concepts.json)
+```bash
+uv run python classify_concepts.py /ruta/a/scraped_site concepts.json
+```
+
+### Paso 2: Construir el índice de documentación
 Si has actualizado los archivos scrapeados, debes regenerar el índice:
 ```bash
 uv run python build_index.py /ruta/a/scraped_site SALIDA.json

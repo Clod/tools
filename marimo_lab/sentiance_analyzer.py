@@ -39,9 +39,10 @@ def __():
     # Paths
     DOCS_DIR = "/Users/claudiograsso/Documents/Sentiance/tools/scraper/scraped_site"
     KEYWORDS_INDEX = "SALIDA.json"
+    CONCEPTS_FILE = "concepts.json"
     
     mo.md("# 🔍 Sentiance SDK JSON Analyzer")
-    return OPENROUTER_API_KEY, OPENROUTER_BASE_URL, DOCS_DIR, KEYWORDS_INDEX, mo, json, os, Path, requests, re
+    return OPENROUTER_API_KEY, OPENROUTER_BASE_URL, CONCEPTS_FILE, DOCS_DIR, KEYWORDS_INDEX, mo, json, os, Path, requests, re
 
 
 @app.cell
@@ -85,21 +86,44 @@ def __(KEYWORDS_INDEX, json):
     with open(KEYWORDS_INDEX, 'r') as f:
         keyword_index = json.load(f)
     
-    print(f"✅ Loaded keyword index: {len(keyword_index)} files")
-    print(f"📝 Sample: {list(keyword_index.items())[:2]}")
+    # Load global concepts
+    try:
+        with open(CONCEPTS_FILE, 'r') as f:
+            global_concepts = json.load(f)
+    except FileNotFoundError:
+        global_concepts = []
     
-    return keyword_index,
+    print(f"✅ Loaded keyword index: {len(keyword_index)} files")
+    print(f"🧠 Loaded global concepts: {len(global_concepts)} files")
+    
+    return global_concepts, keyword_index
 
 
 @app.cell
-def __(DOCS_DIR, Path, call_llm, json, keyword_index, re):
+def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, re):
     """Main analyzer class."""
     
     class SentianceAnalyzer:
-        def __init__(self, keyword_index: dict, docs_dir: str):
+        def __init__(self, keyword_index: dict, global_concepts: list, docs_dir: str):
             self.keyword_index = keyword_index
+            self.global_concepts = global_concepts
             self.docs_dir = docs_dir
             self._file_cache = {}
+            self._conceptual_content = ""
+            
+            # Pre-load conceptual content
+            self._load_global_context()
+        
+        def _load_global_context(self):
+            """Load the content of conceptual files into memory once."""
+            contents = []
+            for filename in self.global_concepts:
+                filepath = Path(self.docs_dir) / filename
+                if filepath.exists():
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        # Take only first 2000 chars of each concept to avoid bloat
+                        contents.append(f"### CONCEPT: {filename}\n{f.read()[:2000]}")
+            self._conceptual_content = "\n\n".join(contents)
         
         def analyze_json(self, json_obj: dict, view: str = "programmer") -> dict:
             """
@@ -235,8 +259,12 @@ Estás analizando para un ARQUITECTO DE SOFTWARE. Proporciona:
 JSON a analizar:
 {json.dumps(json_obj, indent=2)}
 
-DOCUMENTACIÓN REAL DE SENTIANCE (extraída de los archivos):
+---
+CONTEXTO CONCEPTUAL GLOBAL (Sentiance SDK Fundamentals):
+{self._conceptual_content}
 
+---
+DOCUMENTACIÓN ESPECÍFICA (seleccionada para este JSON):
 {self._format_docs(docs_content)}
 
 Basado en la DOCUMENTACIÓN REAL anterior, proporciona un análisis detallado.
@@ -254,7 +282,7 @@ Usa un formato claro con encabezados y viñetas.
             return "\n".join(formatted)
     
     # Initialize analyzer
-    analyzer = SentianceAnalyzer(keyword_index, DOCS_DIR)
+    analyzer = SentianceAnalyzer(keyword_index, global_concepts, DOCS_DIR)
     
     return SentianceAnalyzer, analyzer
 
