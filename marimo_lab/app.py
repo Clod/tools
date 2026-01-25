@@ -206,7 +206,7 @@ def _(mo):
     #   This value updates automatically when user makes a selection!
     table_selector = mo.ui.dropdown(
         options=["SentianceEventos", "MovDebug_Eventos"],
-        value="SentianceEventos",
+        value="MovDebug_Eventos",
         label="Select Source Table"
     )
     
@@ -238,8 +238,12 @@ def _(mo):
     # mo.ui.datetime() - Date and time picker
     #   label: label text
     #   value: initial datetime (optional)
-    start_dt = mo.ui.datetime(label="Start Date/Time")
-    end_dt = mo.ui.datetime(label="End Date/Time")
+    # start_dt = mo.ui.datetime(label="Start Date/Time")
+    # end_dt = mo.ui.datetime(label="End Date/Time")
+    import datetime
+    start_dt = mo.ui.datetime(label="Start Date/Time", value=datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0))
+    end_dt = mo.ui.datetime(label="End Date/Time", value=datetime.datetime.now().replace(hour=23, minute=59, second=59, microsecond=0))
+
 
     # ==========================================================================
     # mo.hstack() / mo.vstack() - LAYOUT COMPONENTS
