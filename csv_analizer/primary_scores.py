@@ -215,14 +215,10 @@ def _(db_df, df, mo, pd, pt_df):
     merged = None
 
     if df is not None and db_df is not None and pt_df is not None:
-        # Convert N/A to NaN for calculations
-        comparison_db = db_df.replace("N/A", pd.NA).copy()
-        comparison_pt = pt_df.replace("N/A", pd.NA).copy()
-
         # Merge on user and transport
         merged = pd.merge(
             df, 
-            comparison_db, 
+            db_df, 
             on=["user_id", "transport_id"], 
             how="left", 
             suffixes=("_csv", "_se")
@@ -230,7 +226,7 @@ def _(db_df, df, mo, pd, pt_df):
 
         merged = pd.merge(
             merged,
-            comparison_pt,
+            pt_df,
             on=["user_id", "transport_id"],
             how="left"
         )
