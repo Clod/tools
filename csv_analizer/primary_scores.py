@@ -247,28 +247,11 @@ def _(db_df, df, mo, pd, pt_df):
         # List of scores to compare
         # score_cols = ["legal", "smooth", "attention", "overall"]
         score_cols = ["legal", "smooth", "overall"]
-    
-        # Calculate deltas (Difference between first two as baseline)
-        for col in score_cols:
-            csv_col = f"{col}_csv"
-            se_col = f"{col}_se"
-            pt_col = f"{col}_pt"
-
-            # Ensure numeric for subtraction
-            merged[csv_col] = pd.to_numeric(merged[csv_col], errors='coerce')
-            merged[se_col] = pd.to_numeric(merged[se_col], errors='coerce')
-            merged[pt_col] = pd.to_numeric(merged[pt_col], errors='coerce')
-
-            # Calculate absolute differences
-            merged[f"{col}_csv_vs_se"] = (merged[csv_col] - merged[se_col]).abs()
-            merged[f"{col}_csv_vs_pt"] = (merged[csv_col] - merged[pt_col]).abs()
-            merged[f"{col}_se_vs_pt"] = (merged[se_col] - merged[pt_col]).abs()
 
         # Reorder columns for readability
         final_cols = ["user_id", "transport_id"]
         for col in score_cols:
             final_cols.extend([f"{col}_csv", f"{col}_se", f"{col}_pt"])
-            # final_cols.extend([f"{col}_csv_vs_se", f"{col}_csv_vs_pt"]) # Optional: add deltas if needed
 
         comparison_table = mo.ui.table(
             merged[final_cols], 
@@ -284,7 +267,6 @@ def _(db_df, df, mo, pd, pt_df):
 def _(comparison_table, mo):
     mo.vstack([
         mo.md("## 📊 Score Comparison (CSV vs Database)"),
-        mo.md("> Deltas show absolute difference between CSV and DB values."),
         comparison_table
     ]) if comparison_table is not None else None
     return
