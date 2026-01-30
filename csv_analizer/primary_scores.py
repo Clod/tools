@@ -118,7 +118,7 @@ def _(df, engine, json, mo, pd):
                         "transport_id": se_transport_id,
                         "legal": se_details.get("legalScore", "N/A"),
                         "smooth": se_details.get("smoothScore", "N/A"),
-                        "attention": se_details.get("focusScore", "N/A"), # Mapping focusScore to attention
+                        "attention": se_details.get("focusScore", "N/A"), 
                         "overall": se_details.get("overallScore", "N/A"),
                         "harsh_accel": se_details.get("harshAccelerationScore", "N/A"),
                         "harsh_brake": se_details.get("harshBrakingScore", "N/A"),
@@ -129,8 +129,8 @@ def _(df, engine, json, mo, pd):
                     se_scores.append({
                         "user_id": se_user_id,
                         "transport_id": se_transport_id,
-                        "legal": "N/A", "smooth": "N/A", "attention": "N/A", "overall": "N/A",
-                        "harsh_accel": "N/A", "harsh_brake": "N/A", "harsh_turn": "N/A", "call_moving": "N/A"
+                        "legal": "---", "smooth": "---", "attention": "---", "overall": "---",
+                        "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "call_moving": "---"
                     })
             except Exception as e:
                 se_scores.append({
@@ -188,7 +188,7 @@ def _(df, engine, mo, pd):
                     pt_scores_list.append({
                         "user_id": pt_user_id,
                         "transport_id": pt_transport_id,
-                        "legal": "N/A", "smooth": "N/A", "attention": "N/A", "overall": "N/A"
+                        "legal": "---", "smooth": "---", "attention": "---", "overall": "---"
                     })
             except Exception as e:
                 pt_scores_list.append({
@@ -245,8 +245,9 @@ def _(db_df, df, mo, pd, pt_df):
         })
 
         # List of scores to compare
-        score_cols = ["legal", "smooth", "attention", "overall"]
-
+        # score_cols = ["legal", "smooth", "attention", "overall"]
+        score_cols = ["legal", "smooth", "overall"]
+    
         # Calculate deltas (Difference between first two as baseline)
         for col in score_cols:
             csv_col = f"{col}_csv"
