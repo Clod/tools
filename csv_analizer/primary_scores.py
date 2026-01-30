@@ -118,7 +118,6 @@ def _(df, engine, json, mo, pd):
                         "transport_id": se_transport_id,
                         "legal": se_details.get("legalScore", "N/A"),
                         "smooth": se_details.get("smoothScore", "N/A"),
-                        "attention": se_details.get("focusScore", "N/A"), 
                         "overall": se_details.get("overallScore", "N/A"),
                         "harsh_accel": se_details.get("harshAccelerationScore", "N/A"),
                         "harsh_brake": se_details.get("harshBrakingScore", "N/A"),
@@ -129,7 +128,7 @@ def _(df, engine, json, mo, pd):
                     se_scores.append({
                         "user_id": se_user_id,
                         "transport_id": se_transport_id,
-                        "legal": "---", "smooth": "---", "attention": "---", "overall": "---",
+                        "legal": "---", "smooth": "---", "overall": "---",
                         "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "call_moving": "---"
                     })
             except Exception as e:
@@ -181,14 +180,13 @@ def _(df, engine, mo, pd):
                         "transport_id": pt_transport_id,
                         "legal": pt_data_row['legal'],
                         "smooth": pt_data_row['suavidad'],
-                        "attention": pt_data_row['atencion'],
                         "overall": pt_data_row['promedio']
                     })
                 else:
                     pt_scores_list.append({
                         "user_id": pt_user_id,
                         "transport_id": pt_transport_id,
-                        "legal": "---", "smooth": "---", "attention": "---", "overall": "---"
+                        "legal": "---", "smooth": "---", "overall": "---"
                     })
             except Exception as e:
                 pt_scores_list.append({
@@ -240,12 +238,10 @@ def _(db_df, df, mo, pd, pt_df):
         merged = merged.rename(columns={
             "legal": "legal_pt",
             "smooth": "smooth_pt",
-            "attention": "attention_pt",
             "overall": "overall_pt"
         })
 
         # List of scores to compare
-        # score_cols = ["legal", "smooth", "attention", "overall"]
         score_cols = ["legal", "smooth", "overall"]
 
         # Reorder columns for readability
