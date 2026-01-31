@@ -118,6 +118,7 @@ def _(df, engine, json, mo, pd):
                         "transport_id": se_transport_id,
                         "legal": se_details.get("legalScore", "N/A"),
                         "smooth": se_details.get("smoothScore", "N/A"),
+                        "focus": se_details.get("focusScore", "N/A"),
                         "overall": se_details.get("overallScore", "N/A"),
                         "harsh_accel": se_details.get("harshAccelerationScore", "N/A"),
                         "harsh_brake": se_details.get("harshBrakingScore", "N/A"),
@@ -128,7 +129,7 @@ def _(df, engine, json, mo, pd):
                     se_scores.append({
                         "user_id": se_user_id,
                         "transport_id": se_transport_id,
-                        "legal": "---", "smooth": "---", "overall": "---",
+                        "legal": "---", "smooth": "---", "focus": "---", "overall": "---",
                         "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "call_moving": "---"
                     })
             except Exception as e:
@@ -152,7 +153,7 @@ def _(db_table, mo):
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(df, engine, mo, pd):
     pt_df = None
     pt_table = None
@@ -200,7 +201,7 @@ def _(df, engine, mo, pd):
     return pt_df, pt_table
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(mo, pt_table):
     mo.vstack([
         mo.md("## Scores from PuntajesPrirmariosTr (Database)"),
