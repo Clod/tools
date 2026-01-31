@@ -15,8 +15,8 @@ def _():
     from sqlalchemy import create_engine
     from dotenv import load_dotenv
 
-    # Load .env from marimo_lab directory
-    # Current notebook: tools/csv_analizer/primary_scores.py
+    # Cargar .env desde el directorio marimo_lab
+    # Notebook actual: tools/csv_analizer/primary_scores.py
     # .env: tools/marimo_lab/.env
     env_path = os.path.abspath(os.path.join(os.getcwd(), "../marimo_lab/.env"))
     load_dotenv(env_path)
@@ -36,7 +36,7 @@ def _(mo):
 @app.cell
 def _(create_engine, mo, os):
     # Configuración de la conexión a la base de datos SQL Server
-    # Database credentials from environment variables
+    # Credenciales de la base de datos de las variables de entorno
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
@@ -66,7 +66,7 @@ def _(mo, pd):
         df = pd.read_csv(csv_path)
         table = mo.ui.table(df, label="Safety Scores Grid (CSV)", selection=None, pagination=True, max_height=500)
 
-        # Summary stats
+        # Estadísticas resumidas
         stats = df.describe().reset_index()
         stats_table = mo.ui.table(stats, label="Summary Statistics")
     else:
@@ -97,14 +97,14 @@ def _(df, engine, json, mo, pd):
         se_scores = []
 
         with mo.status.spinner(title="Consultando SentianceEventos...") as _spinner:
-            # Extract scores for each row
+            # Extraer puntajes para cada fila
             se_total_rows = len(df)
             for se_i, (se_index, se_row) in enumerate(df.iterrows()):
                 _spinner.update(title=f"Consultando SentianceEventos... ({se_i+1}/{se_total_rows})")
                 se_user_id = se_row['user_id']
                 se_transport_id = se_row['transport_id']
 
-                # SQL query using %like% for transport_id in the JSON field
+                # Consulta SQL usando %like% para el transport_id en el campo JSON
                 se_query = f"""
                 SELECT TOP 1 JSON 
                 FROM SentianceEventos 
@@ -119,7 +119,7 @@ def _(df, engine, json, mo, pd):
                         se_raw_json = se_res_df.iloc[0]['JSON']
                         se_data = json.loads(se_raw_json)
 
-                        # Extract safety scores from the JSON structure
+                        # Extraer puntajes de seguridad de la estructura JSON
                         se_details = se_data.get("safetyScores", {})
 
                         se_scores.append({
@@ -232,7 +232,7 @@ def _(db_df, df, mo, pd, pt_df):
     merged = None
 
     if df is not None and db_df is not None and pt_df is not None:
-        # Merge on user and transport
+        # Unir por usuario y transporte
         merged = pd.merge(
             df, 
             db_df, 
@@ -247,17 +247,17 @@ def _(db_df, df, mo, pd, pt_df):
             on=["user_id", "transport_id"],
             how="left"
         )
-        # Rename pt columns to have _pt suffix
+        # Renombrar columnas pt para tener el sufijo _pt
         merged = merged.rename(columns={
             "legal": "legal_pt",
             "smooth": "smooth_pt",
             "overall": "overall_pt"
         })
 
-        # List of scores to compare
+        # Lista de puntajes a comparar
         score_cols = ["legal", "smooth", "overall"]
 
-        # Reorder columns for readability
+        # Reordenar columnas para legibilidad
         final_cols = ["user_id", "transport_id"]
         for col in score_cols:
             final_cols.extend([f"{col}_csv", f"{col}_se", f"{col}_pt"])
@@ -364,10 +364,10 @@ def _(db_df, df, mo, pd, sec_df, st_df):
     # Comparativa multi-fuente de Focus y Concentration (Primary CSV, SE, PT, y Secondary CSV)
     multi_comparison_table = None
     if all(x is not None for x in [df, db_df, st_df, sec_df]):
-        # Start with primary attention
+        # Comenzar con la atención primaria
         comp_df = df[['user_id', 'transport_id', 'attention']].rename(columns={'attention': 'attention_primary'})
 
-        # Merge focus from db_df (SentianceEventos)
+        # Unir focus de db_df (SentianceEventos)
         comp_df = pd.merge(
             comp_df,
             db_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_se_db'}),
@@ -375,7 +375,7 @@ def _(db_df, df, mo, pd, sec_df, st_df):
             how='left'
         )
 
-        # Merge concentration from st_df (PuntajesSecundariosTr)
+        # Unir concentración de st_df (PuntajesSecundariosTr)
         comp_df = pd.merge(
             comp_df,
             st_df[['user_id', 'transport_id', 'concentration']].rename(columns={'concentration': 'concentration_db'}),
@@ -383,7 +383,7 @@ def _(db_df, df, mo, pd, sec_df, st_df):
             how='left'
         )
 
-        # Merge focus from secondary CSV
+        # Unir focus del CSV secundario
         comp_df = pd.merge(
             comp_df,
             sec_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_secondary_csv'}),
