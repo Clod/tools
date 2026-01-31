@@ -6,6 +6,7 @@ app = marimo.App(width="full")
 
 @app.cell
 def _():
+    # Importación de librerías y configuración de variables de entorno
     import marimo as mo
     import pandas as pd
     import os
@@ -24,6 +25,7 @@ def _():
 
 @app.cell
 def _(mo):
+    # Título y descripción del notebook
     mo.md(r"""
     # Primary Safety Scores Analyzer
     This notebook displays the contents of `primary_safety_scores_transports.csv` and retrieves corresponding scores from the database for comparison.
@@ -33,6 +35,7 @@ def _(mo):
 
 @app.cell
 def _(create_engine, mo, os):
+    # Configuración de la conexión a la base de datos SQL Server
     # Database credentials from environment variables
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
@@ -52,6 +55,7 @@ def _(create_engine, mo, os):
 
 @app.cell
 def _(mo, pd):
+    # Carga del archivo CSV principal con puntajes de seguridad
     csv_path = "../csv/primary_safety_scores_transports.csv"
 
     df = None
@@ -72,6 +76,7 @@ def _(mo, pd):
 
 @app.cell
 def _(db_status, mo, stats_table, table):
+    # Visualización del contenido del CSV y estadísticas generales
     mo.vstack([
         db_status,
         mo.md("## Safety Scores Grid (CSV)"),
@@ -84,6 +89,7 @@ def _(db_status, mo, stats_table, table):
 
 @app.cell
 def _(df, engine, json, mo, pd):
+    # Obtención de puntajes desde SentianceEventos (JSON en base de datos)
     db_df = None
     db_table = None
 
@@ -146,6 +152,7 @@ def _(df, engine, json, mo, pd):
 
 @app.cell
 def _(db_table, mo):
+    # Visualización de los puntajes obtenidos de SentianceEventos
     mo.vstack([
         mo.md("## Scores from SentianceEventos (Database)"),
         db_table
@@ -155,6 +162,7 @@ def _(db_table, mo):
 
 @app.cell
 def _(df, engine, mo, pd):
+    # Obtención de puntajes desde la tabla PuntajesPrirmariosTr (Base de datos)
     pt_df = None
     pt_table = None
 
@@ -203,6 +211,7 @@ def _(df, engine, mo, pd):
 
 @app.cell(hide_code=True)
 def _(mo, pt_table):
+    # Visualización de los puntajes obtenidos de PuntajesPrirmariosTr
     mo.vstack([
         mo.md("## Scores from PuntajesPrirmariosTr (Database)"),
         pt_table
@@ -212,6 +221,7 @@ def _(mo, pt_table):
 
 @app.cell
 def _(db_df, df, mo, pd, pt_df):
+    # Cálculo y visualización de la comparativa de puntajes primarios
     comparison_table = None
     merged = None
 
@@ -258,6 +268,7 @@ def _(db_df, df, mo, pd, pt_df):
 
 @app.cell
 def _(comparison_table, mo):
+    # Renderizado de la tabla comparativa de puntajes primarios
     mo.vstack([
         mo.md("## 📊 Score Comparison (CSV vs Database)"),
         comparison_table
@@ -267,6 +278,7 @@ def _(comparison_table, mo):
 
 @app.cell
 def _(df, engine, mo, pd):
+    # Obtención de puntajes secundarios desde la tabla PuntajesSecundariosTr
     st_df = None
     st_table = None
 
@@ -320,6 +332,7 @@ def _(df, engine, mo, pd):
 
 @app.cell(hide_code=True)
 def _(mo, st_table):
+    # Visualización de los puntajes secundarios obtenidos de la base de datos
     mo.vstack([
         mo.md("## Scores from PuntajesSecundariosTr (Database)"),
         st_table
@@ -329,6 +342,7 @@ def _(mo, st_table):
 
 @app.cell(hide_code=True)
 def _(pd):
+    # Carga del archivo CSV secundario (secondary_safety_scores_transports.csv)
     sec_csv_path = "../csv/secondary_safety_scores_transports.csv"
     sec_df = None
     if pd.io.common.file_exists(sec_csv_path):
@@ -338,6 +352,7 @@ def _(pd):
 
 @app.cell(hide_code=True)
 def _(db_df, df, mo, pd, sec_df, st_df):
+    # Comparativa multi-fuente de Focus y Concentration (Primary CSV, SE, PT, y Secondary CSV)
     multi_comparison_table = None
     if all(x is not None for x in [df, db_df, st_df, sec_df]):
         # Start with primary attention
