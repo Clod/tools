@@ -15,8 +15,8 @@ def _():
     from sqlalchemy import create_engine
     from dotenv import load_dotenv
 
-    # Cargar .env desde el directorio marimo_lab
-    # Notebook actual: tools/csv_analizer/primary_scores.py
+    # Load .env from marimo_lab directory
+    # Current notebook: tools/csv_analizer/primary_scores.py
     # .env: tools/marimo_lab/.env
     env_path = os.path.abspath(os.path.join(os.getcwd(), "../marimo_lab/.env"))
     load_dotenv(env_path)
@@ -27,8 +27,7 @@ def _():
 def _(mo):
     # Título y descripción del notebook
     mo.md(r"""
-    # Primary Safety Scores Analyzer
-    This notebook displays the contents of `primary_safety_scores_transports.csv` and retrieves corresponding scores from the database for comparison.
+    # Analizador de Safety Scores
     """)
     return
 
@@ -36,7 +35,7 @@ def _(mo):
 @app.cell
 def _(create_engine, mo, os):
     # Configuración de la conexión a la base de datos SQL Server
-    # Credenciales de la base de datos de las variables de entorno
+    # Database credentials from environment variables
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
@@ -64,11 +63,11 @@ def _(mo, pd):
 
     if pd.io.common.file_exists(csv_path):
         df = pd.read_csv(csv_path)
-        table = mo.ui.table(df, label="Safety Scores Grid (CSV)", selection=None, pagination=True, max_height=500)
+        table = mo.ui.table(df, label="Safety Scores (primary_safety_scores_transports.csv)", selection=None, pagination=True, max_height=500)
 
-        # Estadísticas resumidas
+        # Summary stats
         stats = df.describe().reset_index()
-        stats_table = mo.ui.table(stats, label="Summary Statistics")
+        stats_table = mo.ui.table(stats, label="Estadísticas")
     else:
         table = mo.callout(f"File not found: {csv_path}", kind="danger")
     return df, stats_table, table
@@ -79,9 +78,9 @@ def _(db_status, mo, stats_table, table):
     # Visualización del contenido del CSV y estadísticas generales
     mo.vstack([
         db_status,
-        mo.md("## Safety Scores Grid (CSV)"),
+        mo.md("## Safety Scores (primary_safety_scores_transports.csv)"),
         table,
-        mo.md("## Summary Statistics"),
+        mo.md("## Estadísticas"),
         stats_table
     ]) if table is not None else None
     return
@@ -97,14 +96,14 @@ def _(df, engine, json, mo, pd):
         se_scores = []
 
         with mo.status.spinner(title="Consultando SentianceEventos...") as _spinner:
-            # Extraer puntajes para cada fila
+            # Extract scores for each row
             se_total_rows = len(df)
             for se_i, (se_index, se_row) in enumerate(df.iterrows()):
                 _spinner.update(title=f"Consultando SentianceEventos... ({se_i+1}/{se_total_rows})")
                 se_user_id = se_row['user_id']
                 se_transport_id = se_row['transport_id']
 
-                # Consulta SQL usando %like% para el transport_id en el campo JSON
+                # SQL query using %like% for transport_id in the JSON field
                 se_query = f"""
                 SELECT TOP 1 JSON 
                 FROM SentianceEventos 
@@ -119,7 +118,7 @@ def _(df, engine, json, mo, pd):
                         se_raw_json = se_res_df.iloc[0]['JSON']
                         se_data = json.loads(se_raw_json)
 
-                        # Extraer puntajes de seguridad de la estructura JSON
+                        # Extract safety scores from the JSON structure
                         se_details = se_data.get("safetyScores", {})
 
                         se_scores.append({
@@ -232,7 +231,7 @@ def _(db_df, df, mo, pd, pt_df):
     merged = None
 
     if df is not None and db_df is not None and pt_df is not None:
-        # Unir por usuario y transporte
+        # Merge on user and transport
         merged = pd.merge(
             df, 
             db_df, 
@@ -247,17 +246,17 @@ def _(db_df, df, mo, pd, pt_df):
             on=["user_id", "transport_id"],
             how="left"
         )
-        # Renombrar columnas pt para tener el sufijo _pt
+        # Rename pt columns to have _pt suffix
         merged = merged.rename(columns={
             "legal": "legal_pt",
             "smooth": "smooth_pt",
             "overall": "overall_pt"
         })
 
-        # Lista de puntajes a comparar
+        # List of scores to compare
         score_cols = ["legal", "smooth", "overall"]
 
-        # Reordenar columnas para legibilidad
+        # Reorder columns for readability
         final_cols = ["user_id", "transport_id"]
         for col in score_cols:
             final_cols.extend([f"{col}_csv", f"{col}_se", f"{col}_pt"])
@@ -359,15 +358,15 @@ def _(pd):
     return (sec_df,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(db_df, df, mo, pd, sec_df, st_df):
     # Comparativa multi-fuente de Focus y Concentration (Primary CSV, SE, PT, y Secondary CSV)
     multi_comparison_table = None
     if all(x is not None for x in [df, db_df, st_df, sec_df]):
-        # Comenzar con la atención primaria
+        # Start with primary attention
         comp_df = df[['user_id', 'transport_id', 'attention']].rename(columns={'attention': 'attention_primary'})
 
-        # Unir focus de db_df (SentianceEventos)
+        # Merge focus from db_df (SentianceEventos)
         comp_df = pd.merge(
             comp_df,
             db_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_se_db'}),
@@ -375,7 +374,7 @@ def _(db_df, df, mo, pd, sec_df, st_df):
             how='left'
         )
 
-        # Unir concentración de st_df (PuntajesSecundariosTr)
+        # Merge concentration from st_df (PuntajesSecundariosTr)
         comp_df = pd.merge(
             comp_df,
             st_df[['user_id', 'transport_id', 'concentration']].rename(columns={'concentration': 'concentration_db'}),
@@ -383,7 +382,7 @@ def _(db_df, df, mo, pd, sec_df, st_df):
             how='left'
         )
 
-        # Unir focus del CSV secundario
+        # Merge focus from secondary CSV
         comp_df = pd.merge(
             comp_df,
             sec_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_secondary_csv'}),
