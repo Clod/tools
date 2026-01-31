@@ -96,54 +96,57 @@ def _(df, engine, json, mo, pd):
     if df is not None and engine is not None:
         se_scores = []
 
-        # Extract scores for each row
-        for se_index, se_row in df.iterrows():
-            se_user_id = se_row['user_id']
-            se_transport_id = se_row['transport_id']
+        with mo.status.spinner(title="Consultando SentianceEventos...") as _spinner:
+            # Extract scores for each row
+            se_total_rows = len(df)
+            for se_i, (se_index, se_row) in enumerate(df.iterrows()):
+                _spinner.update(title=f"Consultando SentianceEventos... ({se_i+1}/{se_total_rows})")
+                se_user_id = se_row['user_id']
+                se_transport_id = se_row['transport_id']
 
-            # SQL query using %like% for transport_id in the JSON field
-            se_query = f"""
-            SELECT TOP 1 JSON 
-            FROM SentianceEventos 
-            WHERE sentianceid = '{se_user_id}' 
-            AND JSON LIKE '%{se_transport_id}%'
-            """
+                # SQL query using %like% for transport_id in the JSON field
+                se_query = f"""
+                SELECT TOP 1 JSON 
+                FROM SentianceEventos 
+                WHERE sentianceid = '{se_user_id}' 
+                AND JSON LIKE '%{se_transport_id}%'
+                """
 
-            try:
-                se_res_df = mo.sql(se_query, engine=engine, output=False)
+                try:
+                    se_res_df = mo.sql(se_query, engine=engine, output=False)
 
-                if not se_res_df.empty:
-                    se_raw_json = se_res_df.iloc[0]['JSON']
-                    se_data = json.loads(se_raw_json)
+                    if not se_res_df.empty:
+                        se_raw_json = se_res_df.iloc[0]['JSON']
+                        se_data = json.loads(se_raw_json)
 
-                    # Extract safety scores from the JSON structure
-                    se_details = se_data.get("safetyScores", {})
+                        # Extract safety scores from the JSON structure
+                        se_details = se_data.get("safetyScores", {})
 
+                        se_scores.append({
+                            "user_id": se_user_id,
+                            "transport_id": se_transport_id,
+                            "legal": se_details.get("legalScore", "N/A"),
+                            "smooth": se_details.get("smoothScore", "N/A"),
+                            "focus": se_details.get("focusScore", "N/A"),
+                            "overall": se_details.get("overallScore", "N/A"),
+                            "harsh_accel": se_details.get("harshAccelerationScore", "N/A"),
+                            "harsh_brake": se_details.get("harshBrakingScore", "N/A"),
+                            "harsh_turn": se_details.get("harshTurningScore", "N/A"),
+                            "call_moving": se_details.get("callWhileMovingScore", "N/A")
+                        })
+                    else:
+                        se_scores.append({
+                            "user_id": se_user_id,
+                            "transport_id": se_transport_id,
+                            "legal": "---", "smooth": "---", "focus": "---", "overall": "---",
+                            "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "call_moving": "---"
+                        })
+                except Exception as e:
                     se_scores.append({
                         "user_id": se_user_id,
                         "transport_id": se_transport_id,
-                        "legal": se_details.get("legalScore", "N/A"),
-                        "smooth": se_details.get("smoothScore", "N/A"),
-                        "focus": se_details.get("focusScore", "N/A"),
-                        "overall": se_details.get("overallScore", "N/A"),
-                        "harsh_accel": se_details.get("harshAccelerationScore", "N/A"),
-                        "harsh_brake": se_details.get("harshBrakingScore", "N/A"),
-                        "harsh_turn": se_details.get("harshTurningScore", "N/A"),
-                        "call_moving": se_details.get("callWhileMovingScore", "N/A")
+                        "error": str(e)
                     })
-                else:
-                    se_scores.append({
-                        "user_id": se_user_id,
-                        "transport_id": se_transport_id,
-                        "legal": "---", "smooth": "---", "focus": "---", "overall": "---",
-                        "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "call_moving": "---"
-                    })
-            except Exception as e:
-                se_scores.append({
-                    "user_id": se_user_id,
-                    "transport_id": se_transport_id,
-                    "error": str(e)
-                })
 
         db_df = pd.DataFrame(se_scores)
         db_table = mo.ui.table(db_df, label="SentianceEventos Scores", selection=None, pagination=True, max_height=500)
@@ -169,40 +172,43 @@ def _(df, engine, mo, pd):
     if df is not None and engine is not None:
         pt_scores_list = []
 
-        for pt_index, pt_row in df.iterrows():
-            pt_user_id = pt_row['user_id']
-            pt_transport_id = pt_row['transport_id']
+        with mo.status.spinner(title="Consultando PuntajesPrirmariosTr...") as _spinner:
+            pt_total_rows = len(df)
+            for pt_i, (pt_index, pt_row) in enumerate(df.iterrows()):
+                _spinner.update(title=f"Consultando PuntajesPrirmariosTr... ({pt_i+1}/{pt_total_rows})")
+                pt_user_id = pt_row['user_id']
+                pt_transport_id = pt_row['transport_id']
 
-            pt_query = f"""
-            SELECT legal, suavidad, atencion, promedio 
-            FROM PuntajesPrirmariosTr 
-            WHERE usuario = '{pt_user_id}' AND viaje = '{pt_transport_id}'
-            """
+                pt_query = f"""
+                SELECT legal, suavidad, atencion, promedio 
+                FROM PuntajesPrirmariosTr 
+                WHERE usuario = '{pt_user_id}' AND viaje = '{pt_transport_id}'
+                """
 
-            try:
-                pt_res_df = mo.sql(pt_query, engine=engine, output=False)
+                try:
+                    pt_res_df = mo.sql(pt_query, engine=engine, output=False)
 
-                if not pt_res_df.empty:
-                    pt_data_row = pt_res_df.iloc[0]
+                    if not pt_res_df.empty:
+                        pt_data_row = pt_res_df.iloc[0]
+                        pt_scores_list.append({
+                            "user_id": pt_user_id,
+                            "transport_id": pt_transport_id,
+                            "legal": pt_data_row['legal'],
+                            "smooth": pt_data_row['suavidad'],
+                            "overall": pt_data_row['promedio']
+                        })
+                    else:
+                        pt_scores_list.append({
+                            "user_id": pt_user_id,
+                            "transport_id": pt_transport_id,
+                            "legal": "---", "smooth": "---", "overall": "---"
+                        })
+                except Exception as e:
                     pt_scores_list.append({
                         "user_id": pt_user_id,
                         "transport_id": pt_transport_id,
-                        "legal": pt_data_row['legal'],
-                        "smooth": pt_data_row['suavidad'],
-                        "overall": pt_data_row['promedio']
+                        "error": str(e)
                     })
-                else:
-                    pt_scores_list.append({
-                        "user_id": pt_user_id,
-                        "transport_id": pt_transport_id,
-                        "legal": "---", "smooth": "---", "overall": "---"
-                    })
-            except Exception as e:
-                pt_scores_list.append({
-                    "user_id": pt_user_id,
-                    "transport_id": pt_transport_id,
-                    "error": str(e)
-                })
 
         pt_df = pd.DataFrame(pt_scores_list)
         pt_table = mo.ui.table(pt_df, label="PuntajesPrirmariosTr Scores", selection=None, pagination=True, max_height=500)
@@ -285,45 +291,48 @@ def _(df, engine, mo, pd):
     if df is not None and engine is not None:
         st_scores_list = []
 
-        for st_index, st_row in df.iterrows():
-            st_user_id = st_row['user_id']
-            st_transport_id = st_row['transport_id']
+        with mo.status.spinner(title="Consultando PuntajesSecundariosTr...") as _spinner:
+            st_total_rows = len(df)
+            for st_i, (st_index, st_row) in enumerate(df.iterrows()):
+                _spinner.update(title=f"Consultando PuntajesSecundariosTr... ({st_i+1}/{st_total_rows})")
+                st_user_id = st_row['user_id']
+                st_transport_id = st_row['transport_id']
 
-            st_query = f"""
-            SELECT concentracion, aceleracion_fuerte, frenado_fuerte, curvas_fuertes, anticipacion, celular_fijo, eventos_fuertes 
-            FROM PuntajesSecundariosTr 
-            WHERE usuario = '{st_user_id}' AND viaje = '{st_transport_id}'
-            """
+                st_query = f"""
+                SELECT concentracion, aceleracion_fuerte, frenado_fuerte, curvas_fuertes, anticipacion, celular_fijo, eventos_fuertes 
+                FROM PuntajesSecundariosTr 
+                WHERE usuario = '{st_user_id}' AND viaje = '{st_transport_id}'
+                """
 
-            try:
-                st_res_df = mo.sql(st_query, engine=engine, output=False)
+                try:
+                    st_res_df = mo.sql(st_query, engine=engine, output=False)
 
-                if not st_res_df.empty:
-                    st_data_row = st_res_df.iloc[0]
+                    if not st_res_df.empty:
+                        st_data_row = st_res_df.iloc[0]
+                        st_scores_list.append({
+                            "user_id": st_user_id,
+                            "transport_id": st_transport_id,
+                            "concentration": st_data_row['concentracion'],
+                            "hard_accel": st_data_row['aceleracion_fuerte'],
+                            "hard_brake": st_data_row['frenado_fuerte'],
+                            "hard_turns": st_data_row['curvas_fuertes'],
+                            "anticipation": st_data_row['anticipacion'],
+                            "phone_fixed": st_data_row['celular_fijo'],
+                            "strong_events": st_data_row['eventos_fuertes']
+                        })
+                    else:
+                        st_scores_list.append({
+                            "user_id": st_user_id,
+                            "transport_id": st_transport_id,
+                            "concentration": "---", "hard_accel": "---", "hard_brake": "---", "hard_turns": "---",
+                            "anticipation": "---", "phone_fixed": "---", "strong_events": "---"
+                        })
+                except Exception as e:
                     st_scores_list.append({
                         "user_id": st_user_id,
                         "transport_id": st_transport_id,
-                        "concentration": st_data_row['concentracion'],
-                        "hard_accel": st_data_row['aceleracion_fuerte'],
-                        "hard_brake": st_data_row['frenado_fuerte'],
-                        "hard_turns": st_data_row['curvas_fuertes'],
-                        "anticipation": st_data_row['anticipacion'],
-                        "phone_fixed": st_data_row['celular_fijo'],
-                        "strong_events": st_data_row['eventos_fuertes']
+                        "error": str(e)
                     })
-                else:
-                    st_scores_list.append({
-                        "user_id": st_user_id,
-                        "transport_id": st_transport_id,
-                        "concentration": "---", "hard_accel": "---", "hard_brake": "---", "hard_turns": "---",
-                        "anticipation": "---", "phone_fixed": "---", "strong_events": "---"
-                    })
-            except Exception as e:
-                st_scores_list.append({
-                    "user_id": st_user_id,
-                    "transport_id": st_transport_id,
-                    "error": str(e)
-                })
 
         st_df = pd.DataFrame(st_scores_list)
         st_table = mo.ui.table(st_df, label="PuntajesSecundariosTr Scores", selection=None, pagination=True, max_height=500)
