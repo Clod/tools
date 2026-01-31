@@ -153,7 +153,7 @@ def _(db_table, mo):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(df, engine, mo, pd):
     pt_df = None
     pt_table = None
@@ -265,7 +265,7 @@ def _(comparison_table, mo):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(df, engine, mo, pd):
     st_df = None
     st_table = None
@@ -324,6 +324,62 @@ def _(mo, st_table):
         mo.md("## Scores from PuntajesSecundariosTr (Database)"),
         st_table
     ]) if st_table is not None else None
+    return
+
+
+@app.cell(hide_code=True)
+def _(pd):
+    sec_csv_path = "../csv/secondary_safety_scores_transports.csv"
+    sec_df = None
+    if pd.io.common.file_exists(sec_csv_path):
+        sec_df = pd.read_csv(sec_csv_path)
+    return (sec_df,)
+
+
+@app.cell(hide_code=True)
+def _(db_df, df, mo, pd, sec_df, st_df):
+    multi_comparison_table = None
+    if all(x is not None for x in [df, db_df, st_df, sec_df]):
+        # Start with primary attention
+        comp_df = df[['user_id', 'transport_id', 'attention']].rename(columns={'attention': 'attention_primary'})
+
+        # Merge focus from db_df (SentianceEventos)
+        comp_df = pd.merge(
+            comp_df,
+            db_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_se_db'}),
+            on=['user_id', 'transport_id'],
+            how='left'
+        )
+
+        # Merge concentration from st_df (PuntajesSecundariosTr)
+        comp_df = pd.merge(
+            comp_df,
+            st_df[['user_id', 'transport_id', 'concentration']].rename(columns={'concentration': 'concentration_db'}),
+            on=['user_id', 'transport_id'],
+            how='left'
+        )
+
+        # Merge focus from secondary CSV
+        comp_df = pd.merge(
+            comp_df,
+            sec_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_secondary_csv'}),
+            on=['user_id', 'transport_id'],
+            how='left'
+        )
+
+        multi_comparison_table = mo.ui.table(
+            comp_df,
+            label="Focus & Concentration Multi-Source Comparison",
+            selection=None,
+            pagination=True,
+            max_height=500
+        )
+
+    mo.vstack([
+        mo.md("## 🎯 Focus & Concentration Multi-Source Comparison"),
+        mo.md("> Side-by-side comparison across Primary CSV, SentianceEventos (DB), PuntajesSecundariosTr (DB), and Secondary CSV."),
+        multi_comparison_table
+    ]) if multi_comparison_table is not None else None
     return
 
 
