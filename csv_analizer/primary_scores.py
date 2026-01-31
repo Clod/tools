@@ -265,5 +265,67 @@ def _(comparison_table, mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(df, engine, mo, pd):
+    st_df = None
+    st_table = None
+
+    if df is not None and engine is not None:
+        st_scores_list = []
+
+        for st_index, st_row in df.iterrows():
+            st_user_id = st_row['user_id']
+            st_transport_id = st_row['transport_id']
+
+            st_query = f"""
+            SELECT concentracion, aceleracion_fuerte, frenado_fuerte, curvas_fuertes, anticipacion, celular_fijo, eventos_fuertes 
+            FROM PuntajesSecundariosTr 
+            WHERE usuario = '{st_user_id}' AND viaje = '{st_transport_id}'
+            """
+
+            try:
+                st_res_df = mo.sql(st_query, engine=engine, output=False)
+
+                if not st_res_df.empty:
+                    st_data_row = st_res_df.iloc[0]
+                    st_scores_list.append({
+                        "user_id": st_user_id,
+                        "transport_id": st_transport_id,
+                        "concentration": st_data_row['concentracion'],
+                        "hard_accel": st_data_row['aceleracion_fuerte'],
+                        "hard_brake": st_data_row['frenado_fuerte'],
+                        "hard_turns": st_data_row['curvas_fuertes'],
+                        "anticipation": st_data_row['anticipacion'],
+                        "phone_fixed": st_data_row['celular_fijo'],
+                        "strong_events": st_data_row['eventos_fuertes']
+                    })
+                else:
+                    st_scores_list.append({
+                        "user_id": st_user_id,
+                        "transport_id": st_transport_id,
+                        "concentration": "---", "hard_accel": "---", "hard_brake": "---", "hard_turns": "---",
+                        "anticipation": "---", "phone_fixed": "---", "strong_events": "---"
+                    })
+            except Exception as e:
+                st_scores_list.append({
+                    "user_id": st_user_id,
+                    "transport_id": st_transport_id,
+                    "error": str(e)
+                })
+
+        st_df = pd.DataFrame(st_scores_list)
+        st_table = mo.ui.table(st_df, label="PuntajesSecundariosTr Scores", selection=None, pagination=True, max_height=500)
+    return st_df, st_table
+
+
+@app.cell(hide_code=True)
+def _(mo, st_table):
+    mo.vstack([
+        mo.md("## Scores from PuntajesSecundariosTr (Database)"),
+        st_table
+    ]) if st_table is not None else None
+    return
+
+
 if __name__ == "__main__":
     app.run()
