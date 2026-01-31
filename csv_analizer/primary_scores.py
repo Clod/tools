@@ -156,7 +156,7 @@ def _(df, engine, json, mo, pd):
 def _(db_table, mo):
     # Visualización de los puntajes obtenidos de SentianceEventos
     mo.vstack([
-        mo.md("## Scores from SentianceEventos (Database)"),
+        mo.md("## Scores en SentianceEventos (Database)"),
         db_table
     ]) if db_table is not None else None
     return
@@ -214,11 +214,11 @@ def _(df, engine, mo, pd):
     return pt_df, pt_table
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(mo, pt_table):
     # Visualización de los puntajes obtenidos de PuntajesPrirmariosTr
     mo.vstack([
-        mo.md("## Scores from PuntajesPrirmariosTr (Database)"),
+        mo.md("## Scores en PuntajesPrirmariosTr (Database)"),
         pt_table
     ]) if pt_table is not None else None
     return
@@ -263,7 +263,7 @@ def _(db_df, df, mo, pd, pt_df):
 
         comparison_table = mo.ui.table(
             merged[final_cols], 
-            label="Score Comparison (CSV vs SE vs PT)", 
+            label="Comparativa (CSV vs SentianceEventos vs PuntajesPrimariosTr)", 
             selection=None, 
             pagination=True,
             max_height=500
@@ -275,7 +275,7 @@ def _(db_df, df, mo, pd, pt_df):
 def _(comparison_table, mo):
     # Renderizado de la tabla comparativa de puntajes primarios
     mo.vstack([
-        mo.md("## 📊 Score Comparison (CSV vs Database)"),
+        mo.md("## 📊 Comparativa (primary_safety_scores_transports.csv vs SentianceEventos vs PuntajesPrimariosTr)"),
         comparison_table
     ]) if comparison_table is not None else None
     return
@@ -338,11 +338,11 @@ def _(df, engine, mo, pd):
     return st_df, st_table
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(mo, st_table):
     # Visualización de los puntajes secundarios obtenidos de la base de datos
     mo.vstack([
-        mo.md("## Scores from PuntajesSecundariosTr (Database)"),
+        mo.md("## Scores en PuntajesSecundariosTr (Database)"),
         st_table
     ]) if st_table is not None else None
     return
@@ -392,15 +392,15 @@ def _(db_df, df, mo, pd, sec_df, st_df):
 
         multi_comparison_table = mo.ui.table(
             comp_df,
-            label="Focus & Concentration Multi-Source Comparison",
+            label="Comparativa entre focus y concentración",
             selection=None,
             pagination=True,
             max_height=500
         )
 
     mo.vstack([
-        mo.md("## 🎯 Focus & Concentration Multi-Source Comparison"),
-        mo.md("> Side-by-side comparison across Primary CSV, SentianceEventos (DB), PuntajesSecundariosTr (DB), and Secondary CSV."),
+        mo.md("## 🎯 Comparativa entre focus y concentración"),
+        mo.md("> Comparativa entre primary_safety_scores_transports.csv, SentianceEventos (DB), PuntajesSecundariosTr (DB) y secondary_safety_scores_transports.csv."),
         multi_comparison_table
     ]) if multi_comparison_table is not None else None
     return
