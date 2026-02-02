@@ -15,8 +15,8 @@ def _():
     from sqlalchemy import create_engine
     from dotenv import load_dotenv
 
-    # Load .env from marimo_lab directory
-    # Current notebook: tools/csv_analizer/primary_scores.py
+    # Cargar .env desde el directorio marimo_lab
+    # Notebook actual: tools/csv_analizer/primary_scores.py
     # .env: tools/marimo_lab/.env
     env_path = os.path.abspath(os.path.join(os.getcwd(), "../marimo_lab/.env"))
     load_dotenv(env_path)
@@ -27,7 +27,8 @@ def _():
 def _(mo):
     # Título y descripción del notebook
     mo.md(r"""
-    # Analizador de Safety Scores
+    # Analizador de Puntajes de Seguridad (Safety Scores)
+    Este notebook muestra el contenido de `primary_safety_scores_transports.csv` y recupera los puntajes correspondientes de la base de datos para su comparación.
     """)
     return
 
@@ -35,7 +36,7 @@ def _(mo):
 @app.cell
 def _(create_engine, mo, os):
     # Configuración de la conexión a la base de datos SQL Server
-    # Database credentials from environment variables
+    # Credenciales de la base de datos de las variables de entorno
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
@@ -48,7 +49,7 @@ def _(create_engine, mo, os):
         db_status = mo.md(f"✅ Connected to `{database}` on `{server}`")
     else:
         engine = None
-        db_status = mo.callout("Database credentials missing in .env", kind="warn")
+        db_status = mo.callout("Faltan credenciales de base de datos en .env", kind="warn")
     return db_status, engine
 
 
@@ -63,9 +64,9 @@ def _(mo, pd):
 
     if pd.io.common.file_exists(csv_path):
         df = pd.read_csv(csv_path)
-        table = mo.ui.table(df, label="Safety Scores (primary_safety_scores_transports.csv)", selection=None, pagination=True, max_height=500)
+        table = mo.ui.table(df, label="Grilla de Puntajes (CSV Primario)", selection=None, pagination=True, max_height=500)
 
-        # Summary stats
+        # Estadísticas resumidas
         stats = df.describe().reset_index()
         stats_table = mo.ui.table(stats, label="Estadísticas")
     else:
@@ -96,14 +97,14 @@ def _(df, engine, json, mo, pd):
         se_scores = []
 
         with mo.status.spinner(title="Consultando SentianceEventos...") as _spinner:
-            # Extract scores for each row
+            # Extraer puntajes para cada fila
             se_total_rows = len(df)
             for se_i, (se_index, se_row) in enumerate(df.iterrows()):
                 _spinner.update(title=f"Consultando SentianceEventos... ({se_i+1}/{se_total_rows})")
                 se_user_id = se_row['user_id']
                 se_transport_id = se_row['transport_id']
 
-                # SQL query using %like% for transport_id in the JSON field
+                # Consulta SQL usando %like% para el transport_id en el campo JSON
                 se_query = f"""
                 SELECT TOP 1 JSON 
                 FROM SentianceEventos 
@@ -119,7 +120,7 @@ def _(df, engine, json, mo, pd):
                         se_raw_json = se_res_df.iloc[0]['JSON']
                         se_data = json.loads(se_raw_json)
 
-                        # Extract safety scores from the JSON structure
+                        # Extraer puntajes de seguridad de la estructura JSON
                         se_details = se_data.get("safetyScores", {})
 
                         se_scores.append({
@@ -132,6 +133,7 @@ def _(df, engine, json, mo, pd):
                             "harsh_accel": se_details.get("harshAccelerationScore", "N/A"),
                             "harsh_brake": se_details.get("harshBrakingScore", "N/A"),
                             "harsh_turn": se_details.get("harshTurningScore", "N/A"),
+                            "harsh_events": "---",  # No presente en el JSON de SE proporcionado
                             "call_moving": se_details.get("callWhileMovingScore", "N/A")
                         })
                     else:
@@ -139,7 +141,7 @@ def _(df, engine, json, mo, pd):
                             "user_id": se_user_id,
                             "transport_id": se_transport_id,
                             "legal": "---", "smooth": "---", "focus": "---", "overall": "---",
-                            "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "call_moving": "---"
+                            "harsh_accel": "---", "harsh_brake": "---", "harsh_turn": "---", "harsh_events": "---", "call_moving": "---"
                         })
                 except Exception as e:
                     se_scores.append({
@@ -149,7 +151,7 @@ def _(df, engine, json, mo, pd):
                     })
 
         db_df = pd.DataFrame(se_scores)
-        db_table = mo.ui.table(db_df, label="SentianceEventos Scores", selection=None, pagination=True, max_height=500)
+        db_table = mo.ui.table(db_df, label="Puntajes de SentianceEventos", selection=None, pagination=True, max_height=500)
     return db_df, db_table
 
 
@@ -157,7 +159,7 @@ def _(df, engine, json, mo, pd):
 def _(db_table, mo):
     # Visualización de los puntajes obtenidos de SentianceEventos
     mo.vstack([
-        mo.md("## Scores en SentianceEventos (Database)"),
+        mo.md("## Puntajes en SentianceEventos (Base de Datos)"),
         db_table
     ]) if db_table is not None else None
     return
@@ -211,7 +213,7 @@ def _(df, engine, mo, pd):
                     })
 
         pt_df = pd.DataFrame(pt_scores_list)
-        pt_table = mo.ui.table(pt_df, label="PuntajesPrirmariosTr Scores", selection=None, pagination=True, max_height=500)
+        pt_table = mo.ui.table(pt_df, label="Puntajes de PuntajesPrirmariosTr", selection=None, pagination=True, max_height=500)
     return pt_df, pt_table
 
 
@@ -219,7 +221,7 @@ def _(df, engine, mo, pd):
 def _(mo, pt_table):
     # Visualización de los puntajes obtenidos de PuntajesPrirmariosTr
     mo.vstack([
-        mo.md("## Scores en PuntajesPrirmariosTr (Database)"),
+        mo.md("## Puntajes en PuntajesPrirmariosTr (Base de Datos)"),
         pt_table
     ]) if pt_table is not None else None
     return
@@ -232,7 +234,7 @@ def _(db_df, df, mo, pd, pt_df):
     merged = None
 
     if df is not None and db_df is not None and pt_df is not None:
-        # Merge on user and transport
+        # Unir por usuario y transporte
         merged = pd.merge(
             df, 
             db_df, 
@@ -247,17 +249,17 @@ def _(db_df, df, mo, pd, pt_df):
             on=["user_id", "transport_id"],
             how="left"
         )
-        # Rename pt columns to have _pt suffix
+        # Renombrar columnas pt para tener el sufijo _pt
         merged = merged.rename(columns={
             "legal": "legal_pt",
             "smooth": "smooth_pt",
             "overall": "overall_pt"
         })
 
-        # List of scores to compare
+        # Lista de puntajes a comparar
         score_cols = ["legal", "smooth", "overall"]
 
-        # Reorder columns for readability
+        # Reordenar columnas para legibilidad
         final_cols = ["user_id", "transport_id"]
         for col in score_cols:
             final_cols.extend([f"{col}_csv", f"{col}_se", f"{col}_pt"])
@@ -335,7 +337,7 @@ def _(df, engine, mo, pd):
                     })
 
         st_df = pd.DataFrame(st_scores_list)
-        st_table = mo.ui.table(st_df, label="PuntajesSecundariosTr Scores", selection=None, pagination=True, max_height=500)
+        st_table = mo.ui.table(st_df, label="Puntajes de PuntajesSecundariosTr", selection=None, pagination=True, max_height=500)
     return st_df, st_table
 
 
@@ -364,10 +366,10 @@ def _(db_df, df, mo, pd, sec_df, st_df):
     # Comparativa multi-fuente de Focus y Concentration (Primary CSV, SE, PT, y Secondary CSV)
     multi_comparison_table = None
     if all(x is not None for x in [df, db_df, st_df, sec_df]):
-        # Start with primary attention
+        # Comenzar con la atención primaria
         comp_df = df[['user_id', 'transport_id', 'attention']].rename(columns={'attention': 'attention_primary'})
 
-        # Merge focus from db_df (SentianceEventos)
+        # Unir focus de db_df (SentianceEventos)
         comp_df = pd.merge(
             comp_df,
             db_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_se_db'}),
@@ -375,7 +377,7 @@ def _(db_df, df, mo, pd, sec_df, st_df):
             how='left'
         )
 
-        # Merge concentration from st_df (PuntajesSecundariosTr)
+        # Unir concentración de st_df (PuntajesSecundariosTr)
         comp_df = pd.merge(
             comp_df,
             st_df[['user_id', 'transport_id', 'concentration']].rename(columns={'concentration': 'concentration_db'}),
@@ -383,7 +385,7 @@ def _(db_df, df, mo, pd, sec_df, st_df):
             how='left'
         )
 
-        # Merge focus from secondary CSV
+        # Unir focus del CSV secundario
         comp_df = pd.merge(
             comp_df,
             sec_df[['user_id', 'transport_id', 'focus']].rename(columns={'focus': 'focus_secondary_csv'}),
@@ -404,6 +406,86 @@ def _(db_df, df, mo, pd, sec_df, st_df):
         mo.md("> Comparativa entre primary_safety_scores_transports.csv, SentianceEventos (DB), PuntajesSecundariosTr (DB) y secondary_safety_scores_transports.csv."),
         multi_comparison_table
     ]) if multi_comparison_table is not None else None
+    return
+
+
+@app.cell
+def _(mo, sec_df):
+    # Visualización del CSV secundario (secondary_safety_scores_transports.csv)
+    mo.vstack([
+        mo.md("## Puntajes de Seguridad Secundarios (CSV)"),
+        mo.ui.table(sec_df, label="Grilla de Puntajes (CSV Secundario)", selection=None, pagination=True, max_height=500)
+    ]) if sec_df is not None else mo.md("Esperando archivo CSV secundario...")
+    return
+
+
+@app.cell
+def _(db_df, mo, pd, sec_df, st_df):
+    # Comparativa multi-fuente de Eventos Fuertes (Aceleración, Frenado, Giro)
+    harsh_comparison_table = None
+    
+    if not all(x is None for x in [db_df, st_df, sec_df]):
+        # Unir SE (db_df) si existe
+        if db_df is not None:
+            cols_se = ['user_id', 'transport_id', 'harsh_accel', 'harsh_brake', 'harsh_turn', 'harsh_events']
+            harsh_comp_df = db_df[cols_se].rename(
+                columns={
+                    'harsh_accel': 'acel_se', 
+                    'harsh_brake': 'freno_se', 
+                    'harsh_turn': 'giro_se',
+                    'harsh_events': 'env_se'
+                }
+            )
+        else:
+            harsh_comp_df = pd.DataFrame(columns=['user_id', 'transport_id'])
+
+        # Unir PT (st_df) si existe
+        if st_df is not None:
+            pt_to_merge = st_df[['user_id', 'transport_id', 'hard_accel', 'hard_brake', 'hard_turns', 'strong_events']].rename(
+                columns={
+                    'hard_accel': 'acel_pt', 
+                    'hard_brake': 'freno_pt', 
+                    'hard_turns': 'giro_pt',
+                    'strong_events': 'env_pt'
+                }
+            )
+            harsh_comp_df = pd.merge(harsh_comp_df, pt_to_merge, on=['user_id', 'transport_id'], how='outer')
+
+        # Unir con CSV secundario si existe
+        if sec_df is not None:
+            csv_to_merge = sec_df[['user_id', 'transport_id', 'harsh_acceleration', 'harsh_braking', 'harsh_turning', 'harsh_events']].rename(
+                columns={
+                    'harsh_acceleration': 'acel_csv',
+                    'harsh_braking': 'freno_csv',
+                    'harsh_turning': 'giro_csv',
+                    'harsh_events': 'env_csv'
+                }
+            )
+            harsh_comp_df = pd.merge(harsh_comp_df, csv_to_merge, on=['user_id', 'transport_id'], how='outer')
+
+        # Reordenar columnas para agrupar por tipo de evento
+        ordered_cols = ['user_id', 'transport_id', 
+                        'acel_se', 'acel_pt', 'acel_csv',
+                        'freno_se', 'freno_pt', 'freno_csv',
+                        'giro_se', 'giro_pt', 'giro_csv',
+                        'env_se', 'env_pt', 'env_csv']
+        
+        # Filtrar columnas que existan
+        ordered_cols = [c for c in ordered_cols if c in harsh_comp_df.columns]
+
+        harsh_comparison_table = mo.ui.table(
+            harsh_comp_df[ordered_cols],
+            label="Comparativa de Eventos Fuertes",
+            selection=None,
+            pagination=True,
+            max_height=500
+        )
+
+    mo.vstack([
+        mo.md("## 🏎️ Comparativa de Eventos Fuertes (Aceleración, Frenado, Giro)"),
+        mo.md("> Comparativa entre SentianceEventos (DB), PuntajesSecundariosTr (DB) y secondary_safety_scores_transports.csv."),
+        harsh_comparison_table
+    ]) if harsh_comparison_table is not None else mo.md("Omitiendo comparativa de eventos fuertes (faltan fuentes de datos)")
     return
 
 
