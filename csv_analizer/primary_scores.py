@@ -107,7 +107,8 @@ def _(df, engine, json, mo, pd):
                 se_query = f"""
                 SELECT TOP 1 JSON 
                 FROM SentianceEventos 
-                WHERE sentianceid = '{se_user_id}' 
+                WHERE sentianceid = '{se_user_id}'
+                AND tipo = 'DrivingInsights'
                 AND JSON LIKE '%{se_transport_id}%'
                 """
 
