@@ -489,5 +489,148 @@ def _(db_df, mo, pd, sec_df, st_df):
     return
 
 
+
+@app.cell
+def _(mo, pd, json):
+    # Carga de archivos de eventos de manejo (Driving Events)
+    # Estos archivos contienen el detalle de los eventos en formato JSON por cada columna
+    path_all = "../csv/driving_events_all.csv"
+    path_sig = "../csv/driving_events_significant.csv"
+    
+    ev_all_df = pd.read_csv(path_all) if pd.io.common.file_exists(path_all) else None
+    ev_sig_df = pd.read_csv(path_sig) if pd.io.common.file_exists(path_sig) else None
+    
+    def parse_counts(df_to_parse):
+        if df_to_parse is None:
+            return None
+        
+        event_cols = ['accelerating', 'phone_handling', 'turning', 'mounted', 'braking', 'speeding', 'calls', 'screens']
+        results = []
+        
+        for _, row in df_to_parse.iterrows():
+            entry = {'user_id': row['user_id'], 'transport_id': row['transport_id']}
+            for col in event_cols:
+                try:
+                    val = row[col]
+                    if pd.isna(val) or val == "" or val == "[]":
+                        entry[col] = 0
+                    else:
+                        # Marimo/Pandas a veces escapa las comillas de forma distinta
+                        # Reemplazar "" por " si es necesario, pero json.loads suele manejarlo si viene del CSV bien
+                        events = json.loads(val)
+                        entry[col] = len(events)
+                except Exception:
+                    entry[col] = 0
+            results.append(entry)
+        return pd.DataFrame(results)
+
+    sum_all_df = parse_counts(ev_all_df)
+    sum_sig_df = parse_counts(ev_sig_df)
+    
+    return ev_all_df, ev_sig_df, sum_all_df, sum_sig_df
+
+
+@app.cell
+def _(mo, sum_all_df, sum_sig_df):
+    # Visualización de resúmenes y comparativa de conteos
+    if sum_all_df is not None and sum_sig_df is not None:
+        # Combinar para ver la diferencia
+        diff_df = pd.merge(
+            sum_all_df, 
+            sum_sig_df, 
+            on=['user_id', 'transport_id'], 
+            suffixes=('_all', '_sig')
+        )
+        
+        # Ordenar columnas para comparar pares
+        diff_cols = ['user_id', 'transport_id']
+        event_types = ['accelerating', 'phone_handling', 'turning', 'braking', 'speeding', 'calls']
+        for et in event_types:
+            if f'{et}_all' in diff_df.columns:
+                diff_cols.extend([f'{et}_all', f'{et}_sig'])
+                
+        comparison_events_table = mo.ui.table(
+            diff_df[diff_cols], 
+            label="Comparativa de Conteos: Todos vs Significativos",
+            pagination=True
+        )
+        
+        display_part = mo.vstack([
+            mo.md("## 📈 Comparativa de Conteo de Eventos"),
+            mo.md("> Muestra la cantidad de eventos detectados en `driving_events_all.csv` vs `driving_events_significant.csv`."),
+            comparison_events_table
+        ])
+    else:
+        display_part = mo.md("No se pudieron cargar los archivos de eventos para la comparativa.")
+        
+    return comparison_events_table, display_part
+
+
+@app.cell
+def _(display_part):
+    display_part
+    return
+
+
+@app.cell
+def _(ev_all_df, mo):
+    # Selector de viaje para inspección detallada de eventos
+    transport_selector = None
+    if ev_all_df is not None:
+        options = ev_all_df['transport_id'].unique().tolist()
+        transport_selector = mo.ui.dropdown(options, label="Seleccionar Transport ID para detalles")
+    return transport_selector,
+
+
+@app.cell
+def _(ev_all_df, ev_sig_df, json, mo, pd, transport_selector):
+    # Inspector detallado de eventos - construye el display basado en la selección
+    detail_display = mo.md("Seleccione un Transport ID para ver el detalle de los eventos.")
+    
+    if transport_selector is not None and transport_selector.value:
+        tid = transport_selector.value
+        
+        row_all = ev_all_df[ev_all_df['transport_id'] == tid].iloc[0]
+        row_sig = ev_sig_df[ev_sig_df['transport_id'] == tid].iloc[0] if ev_sig_df is not None else None
+        
+        event_cols = ['accelerating', 'phone_handling', 'turning', 'mounted', 'braking', 'speeding', 'calls', 'screens']
+        tabs_content = {}
+        
+        for ev_col in event_cols:
+            try:
+                data_all = json.loads(row_all[ev_col])
+                data_sig = json.loads(row_sig[ev_col]) if row_sig is not None and ev_col in row_sig else []
+                
+                content = mo.vstack([
+                    mo.md(f"### {ev_col.replace('_', ' ').title()}"),
+                    mo.md("#### Todos los Eventos:"),
+                    mo.ui.table(pd.DataFrame(data_all)) if data_all else mo.md("_Sin eventos_"),
+                    mo.md("#### Eventos Significativos:"),
+                    mo.ui.table(pd.DataFrame(data_sig)) if data_sig else mo.md("_Sin eventos significativos_")
+                ])
+                tabs_content[ev_col.replace('_', ' ').title()] = content
+            except Exception as e:
+                tabs_content[ev_col.replace('_', ' ').title()] = mo.md(f"Error parseando {ev_col}: {str(e)}")
+                
+        detail_display = mo.vstack([
+            mo.md(f"## 🔍 Detalle de Eventos para `{tid}`"),
+            mo.tabs(tabs_content)
+        ])
+    
+    inspector_display = mo.vstack([
+        mo.md("## 🛠️ Inspector de Eventos Detallado"),
+        transport_selector,
+        detail_display
+    ]) if transport_selector is not None else mo.md("Cargando inspector...")
+    
+    return inspector_display,
+
+
+@app.cell
+def _(inspector_display):
+    inspector_display
+    return
+
+
 if __name__ == "__main__":
     app.run()
