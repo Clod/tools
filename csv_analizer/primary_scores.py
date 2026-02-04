@@ -632,5 +632,70 @@ def _(inspector_display):
     return
 
 
+@app.cell
+def _(engine, mo, pd):
+    # Consistencia de Transportes (CSV vs DB)
+    transports_csv_path = "../csv/transports.csv"
+    
+    def get_consistency_table():
+        if not (pd.io.common.file_exists(transports_csv_path) and engine is not None):
+            return None
+
+        trans_df = pd.read_csv(transports_csv_path)
+        tables_to_check = [
+            "Conduccion",
+            "Eventos",
+            "EventosSignificantes",
+            "PuntajesPrirmariosTr",
+            "PuntajesSecundariosTr",
+            "Recorridos",
+            "Transporte"
+        ]
+        
+        consistency_results = []
+        
+        with mo.status.spinner(title="Verificando consistencia en base de datos...") as _spinner:
+            total_trans = len(trans_df)
+            for i, (_, row) in enumerate(trans_df.iterrows()):
+                uid = row['user_id']
+                # Use local variable names safely inside function
+                c_tid = row['transport_id']
+                _spinner.update(title=f"Verificando {c_tid} ({i+1}/{total_trans})")
+                
+                res_entry = {
+                    "user_id": uid,
+                    "transport_id": c_tid,
+                    "mode": row['mode'],
+                    "duration": row['duration']
+                }
+                
+                for t_name in tables_to_check:
+                    try:
+                        query = f"SELECT COUNT(*) as cnt FROM {t_name} WHERE usuario = '{uid}' AND viaje = '{c_tid}'"
+                        check_df = mo.sql(query, engine=engine, output=False)
+                        exists = check_df.iloc[0]['cnt'] > 0
+                        res_entry[t_name] = "✓" if exists else "✗"
+                    except Exception:
+                        res_entry[t_name] = "Error"
+                
+                consistency_results.append(res_entry)
+        
+        return mo.ui.table(
+            pd.DataFrame(consistency_results), 
+            label="Consistencia: transports.csv vs Database",
+            pagination=True,
+            max_height=600
+        )
+
+    trans_consistency_table = get_consistency_table()
+
+    mo.vstack([
+         mo.md("## 🔗 Consistencia de Transportes"),
+         mo.md("> Comparativa entre `transports.csv` y las tablas principales de la base de datos para verificar la integridad de los datos."),
+         trans_consistency_table if trans_consistency_table is not None else mo.md("Esperando archivo `transports.csv` o conexión a DB...")
+    ])
+    return
+
+
 if __name__ == "__main__":
     app.run()
