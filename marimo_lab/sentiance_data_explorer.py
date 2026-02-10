@@ -198,11 +198,12 @@ def _(mo, os, sqlalchemy):
         mo.stop(True, msg)
 
     try:
-        connection_string = f"mssql+pymssql://{username}:{password}@{server}:{port}/{database}"
-        engine = sqlalchemy.create_engine(connection_string)
-        # Validar la conexión inmediatamente
-        with engine.connect() as _conn:
-            pass
+        with mo.status.spinner(title="Estableciendo conexión con la base de datos..."):
+            connection_string = f"mssql+pymssql://{username}:{password}@{server}:{port}/{database}"
+            engine = sqlalchemy.create_engine(connection_string)
+            # Validar la conexión inmediatamente
+            with engine.connect() as _conn:
+                pass
     except Exception as e:
         msg = mo.md(f"""
         ### ❌ Error al conectar con la base de datos
