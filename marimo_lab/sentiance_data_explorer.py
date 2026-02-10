@@ -1,43 +1,43 @@
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║                    SENTIANCE DATA EXPLORER - MARIMO NOTEBOOK                 ║
+║                   EXPLORADOR DE DATOS SENTIANCE - MARIMO                     ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║ WHAT THIS NOTEBOOK DOES:                                                     ║
-║ - Connects to SQL Server database to query Sentiance event data              ║
-║ - Provides filtering by Sentiance ID and date/time range                     ║
-║ - Displays results in an interactive table with row selection                ║
-║ - Shows detailed JSON field viewer for selected rows                         ║
-║ - Extracts and visualizes geographic data (venues/paths) on an interactive   ║
-║   map using leafmap                                                          ║
+║ QUÉ HACE ESTE NOTEBOOK:                                                      ║
+║ - Se conecta a una base de datos SQL Server para consultar eventos Sentiance ║
+║ - Permite filtrar por ID de Sentiance y rango de fecha/hora                  ║
+║ - Muestra resultados en una tabla interactiva con selección de filas         ║
+║ - Ofrece un visor detallado de campos JSON para las filas seleccionadas      ║
+║ - Extrae y visualiza datos geográficos (lugares/rutas) en un mapa            ║
+║   interactivo usando leafmap                                                 ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
-║ HOW TO RUN THIS NOTEBOOK:                                                    ║
+║ CÓMO EJECUTAR ESTE NOTEBOOK:                                                 ║
 ║                                                                              ║
-║ 1. EDIT MODE (Recommended for development):                                  ║
-║    $ marimo edit app.py                                                      ║
-║    Opens in browser with full IDE: code cells, output, and ability to modify ║
+║ 1. CON UV (Recomendado):                                                     ║
+║    $ uv run marimo edit sentiance_data_explorer.py                           ║
+║    Esto instalará automáticamente todas las dependencias necesarias.         ║
 ║                                                                              ║
-║ 2. RUN MODE (Read-only app view):                                            ║
-║    $ marimo run app.py                                                       ║
-║    Opens as a clean app - users see outputs & UI widgets only, no code       ║
+║ 2. MODO EDICIÓN (Tradicional):                                               ║
+║    $ marimo edit sentiance_data_explorer.py                                  ║
+║    Abre el IDE completo en el navegador para editar código y ver salidas     ║
 ║                                                                              ║
-║ 3. CONVERT TO HTML (Static export):                                          ║
-║    $ marimo export html app.py -o app.html                                   ║
-║    Creates a static HTML file (no interactivity, just a snapshot)            ║
+║ 3. MODO EJECUCIÓN (Interfaz limpia):                                         ║
+║    $ marimo run sentiance_data_explorer.py                                   ║
+║    Abre la app final - los usuarios solo ven salidas y widgets de interfaz   ║
 ║                                                                              ║
-║ 4. AS PYTHON SCRIPT (No UI):                                                 ║
-║    $ python app.py                                                           ║
-║    Runs cells in order but without the web interface                         ║
+║ 4. EXPORTAR A HTML (Snapshot estático):                                      ║
+║    $ marimo export html sentiance_data_explorer.py -o app.html               ║
+║    Crea un archivo HTML estático (sin interactividad, solo una captura)      ║
 ║                                                                              ║
-║ 5. CONVERT TO JUPYTER (Migration):                                           ║
-║    $ marimo export ipynb app.py -o app.ipynb                                 ║
-║    Converts to Jupyter notebook format                                       ║
+║ 5. CONVERTIR A JUPYTER (Migración):                                          ║
+║    $ marimo export ipynb sentiance_data_explorer.py -o app.ipynb             ║
+║    Convierte al formato de notebook de Jupyter                               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
 # =============================================================================
-# MARIMO IMPORT & APP INITIALIZATION
+# IMPORTACIÓN DE MARIMO E INICIALIZACIÓN DE LA APP
 # =============================================================================
-# Every marimo notebook MUST start with this import. It's the core library.
+# Todo notebook de marimo DEBE comenzar con esta importación. Es la librería principal.
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
@@ -52,54 +52,54 @@
 
 import marimo
 
-# __generated_with tracks which marimo version created this file.
-# Marimo uses this for compatibility checks. Don't modify manually.
+# __generated_with rastrea qué versión de marimo creó este archivo.
+# Marimo lo usa para chequeos de compatibilidad. No modificar manualmente.
 __generated_with = "0.19.2"
 
 # =============================================================================
-# APP OBJECT CREATION
+# CREACIÓN DEL OBJETO APP
 # =============================================================================
-# marimo.App() creates the application instance. This is the container for all cells.
+# marimo.App() crea la instancia de la aplicación. Este es el contenedor de todas las celdas.
 #
-# CONFIGURATION OPTIONS:
-#   width="full"     - Uses full browser width (default is "medium" ~1200px)
-#   width="medium"   - Fixed medium width, centered
-#   width="compact"  - Narrower layout for reading
+# OPCIONES DE CONFIGURACIÓN:
+#   width="full"     - Usa todo el ancho del navegador (por defecto es "medium" ~1200px)
+#   width="medium"   - Ancho medio fijo, centrado
+#   width="compact"  - Diseño más estrecho para lectura
 #
-# Other App() options include:
-#   css_file="style.css"  - Custom CSS styling
-#   layout_file="layout.json" - Custom cell layout
+# Otras opciones de App() incluyen:
+#   css_file="style.css"  - Estilos CSS personalizados
+#   layout_file="layout.json" - Diseño de celdas personalizado
 app = marimo.App(width="full")
 
 
 # =============================================================================
-# CELL 1: IMPORTS & ENVIRONMENT SETUP
+# CELDA 1: IMPORTACIONES Y CONFIGURACIÓN DEL ENTORNO
 # =============================================================================
-# @app.cell is the DECORATOR that defines a marimo cell.
+# @app.cell es el DECORADOR que define una celda de marimo.
 #
-# DECORATOR OPTIONS:
-#   hide_code=True  - Hides the code in "run" mode (users only see output)
-#   disabled=True   - Cell won't execute (useful for debugging)
+# OPCIONES DEL DECORADOR:
+#   hide_code=True  - Oculta el código en modo "run" (los usuarios solo ven la salida)
+#   disabled=True   - La celda no se ejecutará (útil para depuración)
 #
-# CRITICAL MARIMO CONCEPT - REACTIVITY:
-# Marimo automatically tracks dependencies between cells based on:
-#   1. Variables RETURNED by a cell (in the return statement)
-#   2. Variables USED by other cells (in their function parameters)
+# CONCEPTO CRÍTICO DE MARIMO - REACTIVIDAD:
+# Marimo rastrea automáticamente las dependencias entre celdas basándose en:
+#   1. Variables DEVUELTAS por una celda (en la sentencia return)
+#   2. Variables USADAS por otras celdas (en sus parámetros de función)
 #
-# When a cell's returned value changes, ALL cells that depend on it 
-# automatically re-execute. This is marimo's "reactive" programming model.
+# Cuando el valor devuelto por una celda cambia, TODAS las celdas que dependen
+# de ella se vuelven a ejecutar automáticamente. Este es el modelo reactivo.
 @app.cell(hide_code=True)
 def _():
     # ==========================================================================
-    # IMPORTS INSIDE CELLS
+    # IMPORTACIONES DENTRO DE CELDAS
     # ==========================================================================
-    # In marimo, imports are typically done inside cells and RETURNED.
-    # This makes them available to other cells that need them.
+    # En marimo, las importaciones se suelen hacer dentro de las celdas y se DEVUELVEN.
+    # Esto las hace disponibles para otras celdas que las necesiten.
     # 
-    # WHY? Because marimo tracks dependencies through the return statement.
-    # If you import at the top level (outside cells), marimo can't track it.
+    # ¿POR QUÉ? Porque marimo rastrea dependencias a través de la sentencia return.
+    # Si importas a nivel superior (fuera de celdas), marimo no puede rastrear qué se usa.
     
-    import marimo as mo  # 'mo' is the conventional alias for marimo
+    import marimo as mo  # 'mo' es el alias convencional para marimo
     import pandas as pd
     import json
     import sqlalchemy
@@ -110,59 +110,59 @@ def _():
     load_dotenv()
     
     # ==========================================================================
-    # RETURN STATEMENT - THE HEART OF MARIMO REACTIVITY
+    # SENTENCIA RETURN - EL CORAZÓN DE LA REACTIVIDAD DE MARIMO
     # ==========================================================================
-    # EVERYTHING a cell wants to "export" to other cells MUST be returned.
+    # TODO lo que una celda quiera "exportar" a otras celdas DEBE ser devuelto.
     # 
-    # Return formats:
-    #   return (var1, var2, var3)  - Tuple: exports multiple variables
-    #   return (single_var,)       - Single variable (note the trailing comma!)
-    #   return                     - Nothing exported (cell is a "sink")
+    # Formatos de retorno:
+    #   return (var1, var2, var3)  - Tupla: exporta múltiples variables
+    #   return (single_var,)       - Una sola variable (¡nota la coma final!)
+    #   return                     - No exporta nada (la celda es un "sumidero")
     #
-    # The returned variables become available as PARAMETERS to other cells.
+    # Las variables devueltas se vuelven disponibles como PARÁMETROS para otras celdas.
     return json, leafmap, mo, os, pd, sqlalchemy
 
 
 # =============================================================================
-# CELL 2: MARKDOWN HEADER
+# CELDA 2: ENCABEZADO EN MARKDOWN
 # =============================================================================
-# Notice how this cell has 'mo' in its parameters - this means it DEPENDS on
-# the previous cell that returned 'mo'. Marimo ensures this cell runs AFTER
-# the cell that provides 'mo'.
+# Observa cómo esta celda tiene 'mo' en sus parámetros; esto significa que DEPENDE
+# de la celda anterior que devolvió 'mo'. Marimo asegura que esta celda se ejecute
+# DESPUÉS de la que proporciona 'mo'.
 @app.cell(hide_code=True)
 def _(mo):
     # ==========================================================================
-    # mo.md() - MARKDOWN RENDERING
+    # mo.md() - RENDERIZADO DE MARKDOWN
     # ==========================================================================
-    # mo.md() converts markdown text to formatted HTML output.
+    # mo.md() convierte texto markdown en salida HTML formateada.
     # 
-    # IMPORTANT: The LAST expression in a cell is automatically displayed.
-    # You don't need print() - just put the expression as the last line.
+    # IMPORTANTE: La ÚLTIMA expresión de una celda se muestra automáticamente.
+    # No necesitas print() - solo pon la expresión como la última línea.
     #
-    # Supports full markdown: headers, bold, italic, code blocks, tables, etc.
-    # Also supports emoji directly in the text! 🎉
+    # Soporta markdown completo: encabezados, negrita, cursiva, bloques de código, etc.
+    # ¡También soporta emojis directamente en el texto! 🎉
     mo.md("""
-    # Welcome to Marimo! 🌊
+    # ¡Bienvenido a Sentiance Data Explorer! 🌊
     """)
-    return  # Empty return = this cell exports nothing
+    return  # Retorno vacío = esta celda no exporta nada
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md("""
-    ### SQL Server Connection
-    To connect to your SQL Server, we'll use `sqlalchemy` and `pymssql`.
-    You can use the cell below to define your connection string.
+    ### Conexión a SQL Server
+    Para conectarnos a SQL Server, usaremos `sqlalchemy` y `pymssql`.
+    Puede usar la celda de abajo para definir su cadena de conexión.
     """)
     return
 
 
 # =============================================================================
-# CELL 4: DATABASE ENGINE CREATION
+# CELDA 4: CREACIÓN DEL MOTOR DE BASE DE DATOS
 # =============================================================================
 @app.cell(hide_code=True)
 def _(os, sqlalchemy):
-    # Database credentials from environment variables
+    # Credenciales de base de datos desde variables de entorno
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
@@ -173,37 +173,37 @@ def _(os, sqlalchemy):
     engine = sqlalchemy.create_engine(connection_string)
     
     # ==========================================================================
-    # SINGLE VARIABLE RETURN SYNTAX
+    # SINTAXIS DE RETORNO PARA VARIABLE ÚNICA
     # ==========================================================================
-    # When returning a single variable, you MUST use a trailing comma: (var,)
-    # This tells Python it's a tuple, not just parentheses for grouping.
-    # Without the comma: (engine) is just 'engine' with parentheses
-    # With the comma: (engine,) is a tuple containing 'engine'
+    # Al devolver una sola variable, DEBES usar una coma final: (var,)
+    # Esto le dice a Python que es una tupla, no solo paréntesis de agrupación.
+    # Sin la coma: (engine) es solo 'engine' con paréntesis.
+    # Con la coma: (engine,) es una tupla que contiene a 'engine'.
     return (engine,)
 
 
 # =============================================================================
-# CELL 5: TABLE SELECTOR DROPDOWN
+# CELDA 5: DESPLEGABLE DE SELECCIÓN DE TABLA
 # =============================================================================
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("### Table Selection")
+    mo.md("### Selección de Tabla")
     
     # ==========================================================================
-    # mo.ui - MARIMO'S UI COMPONENTS
+    # mo.ui - COMPONENTES DE INTERFAZ DE USUARIO DE MARIMO
     # ==========================================================================
-    # mo.ui contains all interactive widgets. They are REACTIVE - when user
-    # interacts with them, any cell depending on that widget re-executes!
+    # mo.ui contiene todos los widgets interactivos. Son REACTIVOS: cuando el usuario
+    # interactúa con ellos, ¡cualquier celda que dependa de ese widget se vuelve a ejecutar!
     #
-    # mo.ui.dropdown() - Creates a dropdown/select menu
-    # PARAMETERS:
-    #   options: list of strings OR dict {label: value}
-    #   value: initial selected value
-    #   label: text label shown above the dropdown
+    # mo.ui.dropdown() - Crea un menú desplegable
+    # PARÁMETROS:
+    #   options: lista de strings O dict {etiqueta: valor}
+    #   value: valor seleccionado inicialmente
+    #   label: etiqueta de texto que se muestra sobre el desplegable
     #
-    # ACCESSING THE VALUE:
-    #   widget.value - returns the currently selected value
-    #   This value updates automatically when user makes a selection!
+    # ACCESO AL VALOR:
+    #   widget.value - devuelve el valor seleccionado actualmente
+    #   ¡Este valor se actualiza automáticamente cuando el usuario hace una selección!
     table_selector = mo.ui.dropdown(
         options=["SentianceEventos", "MovDebug_Eventos"],
         value="MovDebug_Eventos",
@@ -211,33 +211,33 @@ def _(mo):
     )
     
     # ==========================================================================
-    # DISPLAYING UI ELEMENTS
+    # MOSTRAR ELEMENTOS DE INTERFAZ
     # ==========================================================================
-    # Just reference the widget as the last expression to display it.
-    # It will render as an interactive dropdown in the output.
+    # Solo referencia el widget como la última expresión para mostrarlo.
+    # Se renderizará como un desplegable interactivo en la salida.
     table_selector
     return (table_selector,)
 
 
 # =============================================================================
-# CELL 6: FILTER INPUT CONTROLS
+# CELDA 6: CONTROLES DE FILTRADO
 # =============================================================================
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md("### Data Filtering")
+    mo.md("### Filtrado de Datos")
     
     # ==========================================================================
-    # MORE UI COMPONENTS
+    # MÁS COMPONENTES DE INTERFAZ
     # ==========================================================================
-    # mo.ui.text() - Single line text input
-    #   label: label text
-    #   placeholder: gray hint text shown when empty
-    #   value: initial value (optional)
-    sid_input = mo.ui.text(label="Sentiance ID", placeholder="Enter ID...")
+    # mo.ui.text() - Entrada de texto de una sola línea
+    #   label: texto de la etiqueta
+    #   placeholder: sugerencia en gris que se muestra cuando está vacío
+    #   value: valor inicial (opcional)
+    sid_input = mo.ui.text(label="Sentiance ID", placeholder="Ingrese ID...")
     
-    # mo.ui.datetime() - Date and time picker
-    #   label: label text
-    #   value: initial datetime (optional)
+    # mo.ui.datetime() - Selector de fecha y hora
+    #   label: texto de la etiqueta
+    #   value: fecha/hora inicial (opcional)
     # start_dt = mo.ui.datetime(label="Start Date/Time")
     # end_dt = mo.ui.datetime(label="End Date/Time")
     import datetime
@@ -246,14 +246,14 @@ def _(mo):
 
 
     # ==========================================================================
-    # mo.hstack() / mo.vstack() - LAYOUT COMPONENTS
+    # mo.hstack() / mo.vstack() - COMPONENTES DE DISEÑO (LAYOUT)
     # ==========================================================================
-    # mo.hstack() - Arranges elements HORIZONTALLY (side by side)
-    # mo.vstack() - Arranges elements VERTICALLY (stacked)
+    # mo.hstack() - Organiza elementos HORIZONTALMENTE (uno al lado del otro)
+    # mo.vstack() - Organiza elementos VERTICALMENTE (apilados)
     #
-    # PARAMETERS:
-    #   items: list of elements to arrange
-    #   gap: spacing between items (in rem units, ~16px)
+    # PARÁMETROS:
+    #   items: lista de elementos para organizar
+    #   gap: espacio entre elementos (en unidades rem, ~16px)
     #   align: "start", "center", "end", "stretch"
     #   justify: "start", "center", "end", "space-between", "space-around"
     filter_ui = mo.hstack([sid_input, start_dt, end_dt], gap=2)
@@ -262,20 +262,20 @@ def _(mo):
 
 
 # =============================================================================
-# CELL 7: SQL QUERY EXECUTION
+# CELDA 7: EJECUCIÓN DE CONSULTA SQL
 # =============================================================================
-# This cell depends on MANY upstream values - notice they're all in the params!
-# Marimo will re-run this cell whenever ANY of these change:
-#   - end_dt, start_dt, sid_input (when user changes filter inputs)
-#   - table_selector (when user picks different table)
-#   - engine, mo (from initialization)
+# Esta celda depende de MUCHOS valores precedentes.
+# Marimo volverá a ejecutar esta celda cada vez que CAMBIE cualquiera de estos:
+#   - end_dt, start_dt, sid_input (cuando el usuario cambia los filtros)
+#   - table_selector (cuando el usuario elige una tabla diferente)
+#   - engine, mo (desde la inicialización)
 @app.cell(hide_code=True)
 def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
-    # Build dynamic SQL query
+    # Construir consulta SQL dinámica
     base_query = f"SELECT TOP 100 * FROM VictaTMTK.dbo.{table_selector.value}"
     where_clauses = []
 
-    # .value is how you access the current value of ANY mo.ui widget
+    # .value es cómo accedes al valor actual de CUALQUIER widget mo.ui
     sid = sid_input.value.strip() if sid_input.value else None
     start = start_dt.value if start_dt.value else None
     end = end_dt.value if end_dt.value else None
@@ -293,71 +293,70 @@ def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
     query += " ORDER BY fechahora DESC"
 
     # ==========================================================================
-    # mo.accordion() - COLLAPSIBLE SECTIONS
+    # mo.accordion() - SECCIONES DESPLEGABLES
     # ==========================================================================
-    # Creates expandable/collapsible sections. Great for optional details.
-    # Takes a dict: {title: content}
-    # Multiple items create multiple collapsible sections.
+    # Crea secciones que se pueden expandir o contraer.
+    # Toma un dict: {título: contenido}
     query_log = mo.accordion({
-        "📝 SQL Query Log": mo.md(f"```sql\n{query}\n```")
+        "📝 Log de Consulta SQL": mo.md(f"```sql\n{query}\n```")
     })
 
     # ==========================================================================
-    # mo.sql() - BUILT-IN SQL EXECUTION
+    # mo.sql() - EJECUCIÓN SQL INTEGRADA
     # ==========================================================================
-    # Marimo has native SQL support! mo.sql() executes queries and returns DataFrame.
+    # ¡Marimo tiene soporte nativo para SQL! mo.sql() ejecuta consultas y devuelve un DataFrame.
     #
-    # PARAMETERS:
-    #   query: SQL string to execute
-    #   output: if True, displays result table automatically; False = just return data
-    #   engine: SQLAlchemy engine for the database connection
+    # PARÁMETROS:
+    #   query: cadena SQL para ejecutar
+    #   output: si es True, muestra la tabla de resultados automáticamente
+    #   engine: motor SQLAlchemy para la conexión a la base de datos
     #
-    # Returns a pandas DataFrame with the query results.
+    # Devuelve un pandas DataFrame con los resultados de la consulta.
     df = mo.sql(
         query,
         output=False,  # We'll display in our own table widget
         engine=engine
     )
 
-    query_log  # Display the accordion
-    return (df,)  # Export the DataFrame for other cells
+    query_log  # Mostrar el acordeón
+    return (df,)  # Exportar el DataFrame para otras celdas
 
 
 # =============================================================================
-# CELL 8: INTERACTIVE DATA TABLE
+# CELDA 8: TABLA DE DATOS INTERACTIVA
 # =============================================================================
 @app.cell(hide_code=True)
 def _(df, mo):
     # ==========================================================================
-    # mo.ui.table() - INTERACTIVE DATA TABLE
+    # mo.ui.table() - TABLA DE DATOS INTERACTIVA
     # ==========================================================================
-    # Renders a DataFrame as an interactive, sortable, filterable table.
+    # Renderiza un DataFrame como una tabla interactiva, ordenable y filtrable.
     #
-    # PARAMETERS:
-    #   data: DataFrame or list of dicts
+    # PARÁMETROS:
+    #   data: DataFrame o lista de diccionarios
     #   selection: "single" | "multi" | None
-    #       - "single": user can select one row
-    #       - "multi": user can select multiple rows  
-    #       - None: no selection allowed
-    #   label: description text
-    #   page_size: rows per page (default 10)
-    #   pagination: True/False to enable paging
+    #       - "single": el usuario puede seleccionar una fila
+    #       - "multi": el usuario puede seleccionar múltiples filas  
+    #       - None: no se permite selección
+    #   label: texto descriptivo
+    #   page_size: filas por página (por defecto 10)
+    #   pagination: True/False para habilitar paginación
     #
-    # REACTIVE SELECTION:
-    #   table.value returns a DataFrame of selected row(s)
-    #   When selection changes, cells using table.value re-execute!
-    table = mo.ui.table(df, selection="single", label="Select a row to see details")
+    # SELECCIÓN REACTIVA:
+    #   table.value devuelve un DataFrame de la(s) fila(s) seleccionada(s)
+    #   Cuando la selección cambia, ¡las celdas que usan table.value se vuelven a ejecutar!
+    table = mo.ui.table(df, selection="single", label="Seleccione una fila para ver detalles")
     table
     return (table,)
 
 
 # =============================================================================
-# CELL 9: ROW DETAIL VIEWER
+# CELDA 9: VISOR DE DETALLE DE FILA
 # =============================================================================
-# This cell reacts to table selection - when user clicks a row, this updates!
+# ¡Esta celda reacciona a la selección de la tabla!
 @app.cell(hide_code=True)
 def _(json, mo, table):
-    # table.value is a DataFrame of selected rows (empty if nothing selected)
+    # table.value es un DataFrame con las filas seleccionadas (vacío si no hay selección)
     selected_row = table.value
 
     if len(selected_row) > 0:
@@ -384,11 +383,11 @@ def _(json, mo, table):
             box_height = 25 if is_json else 2
 
             # =================================================================
-            # mo.ui.text_area() - MULTI-LINE TEXT INPUT
+            # mo.ui.text_area() - ÁREA DE TEXTO MULTILÍNEA
             # =================================================================
-            # Like text() but for multi-line content. 
-            #   disabled=True makes it read-only (display only)
-            #   rows: number of visible text rows
+            # Como text() pero para contenido de varias líneas. 
+            #   disabled=True lo hace de solo lectura (solo visualización)
+            #   rows: número de filas de texto visibles
             field_ui = mo.vstack([
                 mo.md(f"**{col}**"),
                 mo.ui.text_area(value=formatted_val, disabled=True, rows=box_height)
@@ -399,23 +398,23 @@ def _(json, mo, table):
             else:
                 left_items.append(field_ui)
 
-        # Nested layout: vstack inside hstack for complex layouts
+        # Diseño anidado: vstack dentro de hstack para diseños complejos
         view = mo.vstack([
-            mo.md("### Row Detail"),
+            mo.md("### Detalle de Fila"),
             mo.hstack([
                 mo.vstack(left_items, gap=1, align="stretch"),
                 mo.vstack(right_items, gap=1, align="stretch")
             ], gap=2, align="start")
         ], gap=1)
     else:
-        view = mo.md("💡 *Select a row in the table above to view its details here.*")
+        view = mo.md("💡 *Seleccione una fila en la tabla de arriba para ver sus detalles aquí.*")
 
-    view  # Display the constructed view
-    return  # No exports - this is a display-only cell
+    view  # Mostrar la vista construida
+    return  # Sin exportaciones: esta es una celda solo de visualización
 
 
 # =============================================================================
-# CELL 10: GEOGRAPHIC DATA EXTRACTION
+# CELDA 10: EXTRACCIÓN DE DATOS GEOGRÁFICOS
 # =============================================================================
 @app.cell(hide_code=True)
 def _(json, mo, pd, table):
@@ -426,7 +425,7 @@ def _(json, mo, pd, table):
         geo_data_found = []
 
         def find_geo_structures(obj, parent_key="", in_path=False):
-            """Recursively find waypoints or lat/long in dicts/lists"""
+            """Busca recursivamente coordenadas o lat/long en dicts/lists"""
             if isinstance(obj, dict):
                 current_is_path = False
                 g_type = obj.get("type", obj.get("venue_type"))
@@ -436,7 +435,7 @@ def _(json, mo, pd, table):
                 if "waypoints" in obj:
                     geo_data_found.append({
                         "Source": parent_key or "root",
-                        "Kind": "Path 🛤️",
+                        "Kind": "Ruta 🛤️",
                         "GeoType": g_type,
                         "Significance": g_significance,
                         "Accuracy": g_accuracy,
@@ -455,7 +454,7 @@ def _(json, mo, pd, table):
                     if coords and not in_path:
                         geo_data_found.append({
                             "Source": parent_key or "root",
-                            "Kind": "Venue 📍",
+                            "Kind": "Lugar 📍",
                             "GeoType": g_type,
                             "Significance": g_significance,
                             "Accuracy": g_accuracy,
@@ -487,7 +486,7 @@ def _(json, mo, pd, table):
             geo_df = pd.DataFrame(geo_data_found)
             table_cols = ["Kind", "Source", "GeoType", "Significance", "Accuracy", "Summary"]
             table_cols = [c for c in table_cols if c in geo_df.columns]
-            geo_table_ui = mo.ui.table(geo_df[table_cols], selection="single", label="Select to zoom in map")
+            geo_table_ui = mo.ui.table(geo_df[table_cols], selection="single", label="Seleccione para hacer zoom en el mapa")
         else:
             geo_table_ui = None
             geo_df = None
@@ -500,12 +499,12 @@ def _(json, mo, pd, table):
 
 
 # =============================================================================
-# CELL 11: MAP VISUALIZATION
+# CELDA 11: VISUALIZACIÓN EN MAPA
 # =============================================================================
-# This cell demonstrates a complex reactive chain:
-# 1. Depends on geo_table_ui from previous cell
-# 2. When user selects row in geo_table_ui, this cell re-runs
-# 3. Map updates to show just the selected element
+# Esta celda demuestra una cadena reactiva compleja:
+# 1. Depende de geo_table_ui de la celda anterior.
+# 2. Cuando el usuario selecciona una fila en geo_table_ui, esta celda se vuelve a ejecutar.
+# 3. El mapa se actualiza para mostrar solo el elemento seleccionado.
 @app.cell(hide_code=True)
 def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
     if geo_table_ui is not None and geo_df is not None:
@@ -513,10 +512,10 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
             selected_item = geo_table_ui.value.iloc[0]
             orig_item = geo_df[geo_df["Source"] == selected_item["Source"]].iloc[0]
 
-            if orig_item["Kind"] == "Venue 📍":
+            if orig_item["Kind"] == "Lugar 📍":
                 m = leafmap.Map(backend="ipyleaflet", center=[orig_item["Lat"], orig_item["Lon"]], zoom=15, minimize_control=True)
-                m.add_marker(location=[orig_item["Lat"], orig_item["Lon"]], tooltip=f"{orig_item['Source']} - SELECTED")
-            elif orig_item["Kind"] == "Path 🛤️":
+                m.add_marker(location=[orig_item["Lat"], orig_item["Lon"]], tooltip=f"{orig_item['Source']} - SELECCIONADO")
+            elif orig_item["Kind"] == "Ruta 🛤️":
                 pts = [[p["latitude"], p["longitude"]] for p in orig_item["Data"]["waypoints"]]
                 if pts:
                     center_lat = sum(p[0] for p in pts) / len(pts)
@@ -526,9 +525,9 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
                     line_geojson = {
                         "type": "FeatureCollection",
                         "features": [{
-                            "type": "Feature",
+                             "type": "Feature",
                             "geometry": {"type": "LineString", "coordinates": coords},
-                            "properties": {"name": f"{orig_item['Source']} - SELECTED"}
+                            "properties": {"name": f"{orig_item['Source']} - SELECCIONADO"}
                         }]
                     }
                     m.add_geojson(line_geojson, layer_name=orig_item["Source"])
@@ -539,9 +538,9 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
         else:
             m = leafmap.Map(backend="ipyleaflet", center=[-34.6, -58.4], zoom=10, minimize_control=True)
             for idx, row in geo_df.iterrows():
-                if row["Kind"] == "Venue 📍":
+                if row["Kind"] == "Lugar 📍":
                     m.add_marker(location=[row["Lat"], row["Lon"]], tooltip=f"{row['Source']} ({row['GeoType'] or ''})")
-                elif row["Kind"] == "Path 🛤️":
+                elif row["Kind"] == "Ruta 🛤️":
                     coords = [[p["longitude"], p["latitude"]] for p in row["Data"]["waypoints"]]
                     if coords:
                         line_geojson = {
@@ -555,31 +554,31 @@ def _(geo_data_found, geo_df, geo_table_ui, json, leafmap, mo):
                         m.add_geojson(line_geojson, layer_name=row["Source"])
 
         geo_view = mo.vstack([
-            mo.md("## 🌍 Interactive Geographic View"),
+            mo.md("## 🌍 Vista Geográfica Interactiva"),
             mo.hstack([
-                mo.vstack([mo.md("### Elements"), geo_table_ui], align="stretch"),
-                mo.vstack([mo.md("### Map"), m], align="stretch")
+                mo.vstack([mo.md("### Elementos"), geo_table_ui], align="stretch"),
+                mo.vstack([mo.md("### Mapa"), m], align="stretch")
             ], gap=2, align="start"),
-            mo.md("### Details"),
+            mo.md("### Detalles"),
             mo.vstack([
                 mo.vstack([
-                    mo.md(f"#### {item['Kind']} (from `{item['Source']}`)"),
-                    mo.md(f"**Description:** {item['Summary']}"),
-                    mo.accordion({"Raw Data": mo.ui.text_area(value=json.dumps(item['Data'], indent=2), disabled=True, rows=10)})
+                    mo.md(f"#### {item['Kind']} (desde `{item['Source']}`)"),
+                    mo.md(f"**Descripción:** {item['Summary']}"),
+                    mo.accordion({"Datos Raw": mo.ui.text_area(value=json.dumps(item['Data'], indent=2), disabled=True, rows=10)})
                 ], gap=0.5) for item in geo_data_found
             ], gap=2)
         ])
     else:
-        geo_view = mo.md("ℹ️ *No geographic information detected.*")
+        geo_view = mo.md("ℹ️ *No se detectó información geográfica.*")
 
     geo_view
     return
 
 
 # =============================================================================
-# SCRIPT ENTRY POINT
+# PUNTO DE ENTRADA DEL SCRIPT
 # =============================================================================
-# This allows running the notebook as a Python script: python app.py
-# When run this way, cells execute in dependency order without the UI.
+# Esto permite ejecutar el notebook como un script de Python: python app.py
+# Al ejecutarlo así, las celdas se ejecutan en orden de dependencia sin la interfaz.
 if __name__ == "__main__":
     app.run()
