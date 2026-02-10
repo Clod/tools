@@ -161,16 +161,60 @@ def _(mo):
 # CELDA 4: CREACIÓN DEL MOTOR DE BASE DE DATOS
 # =============================================================================
 @app.cell(hide_code=True)
-def _(os, sqlalchemy):
+def _(mo, os, sqlalchemy):
     # Credenciales de base de datos desde variables de entorno
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
     password = os.getenv("DB_PASS")
-    port = os.getenv("DB_PORT", 9433)
+    # El puerto por defecto para SQL Server suele ser 1433, pero aquí se usa 9433
+    port = os.getenv("DB_PORT", "9433")
 
-    connection_string = f"mssql+pymssql://{username}:{password}@{server}:{port}/{database}"
-    engine = sqlalchemy.create_engine(connection_string)
+    # Validar que todas las variables requeridas existan
+    required_vars = {
+        "DB_SERVER": server,
+        "DB_NAME": database,
+        "DB_USER": username,
+        "DB_PASS": password
+    }
+    missing = [v for v, val in required_vars.items() if not val]
+
+    if missing:
+        msg = mo.md(f"""
+        ### ⚠️ Configuración incompleta (.env)
+        
+        No se pudieron encontrar todas las credenciales necesarias. Asegúrese de que el archivo `.env` existe y tiene el siguiente formato:
+
+        ```env
+        DB_SERVER=servidor.dominio.com
+        DB_NAME=NombreDeLaBaseDeDatos
+        DB_USER=usuario_sql
+        DB_PASS=contraseña_segura
+        DB_PORT=9433
+        ```
+
+        **Variables faltantes:** {", ".join([f"`{m}`" for m in missing])}
+        """).callout(kind="warn")
+        mo.stop(True, msg)
+
+    try:
+        connection_string = f"mssql+pymssql://{username}:{password}@{server}:{port}/{database}"
+        engine = sqlalchemy.create_engine(connection_string)
+        # Validar la conexión inmediatamente
+        with engine.connect() as _conn:
+            pass
+    except Exception as e:
+        msg = mo.md(f"""
+        ### ❌ Error al conectar con la base de datos
+        
+        Hubo un problema al intentar establecer la conexión. Verifique los datos en su archivo `.env` y que el servidor sea accesible.
+
+        **Detalle del error:**
+        ```text
+        {str(e)}
+        ```
+        """).callout(kind="danger")
+        mo.stop(True, msg)
     
     # ==========================================================================
     # SINTAXIS DE RETORNO PARA VARIABLE ÚNICA
