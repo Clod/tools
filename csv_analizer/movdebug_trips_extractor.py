@@ -157,6 +157,10 @@ def process_extracted_data(extracted_trips, extraction_complete, mo, os, pd):
         # Sort by Trip ID, then chronologically by the Db Record ID to see changes over time
         final_df = final_df.sort_values(by=['trip_id', 'db_record_id'], ascending=[True, True])
         
+        # Force these columns to be categorical for better Marimo filtering
+        final_df['transportMode'] = final_df['transportMode'].fillna('UNAVAILABLE').astype('category')
+        final_df['source_tipo'] = final_df['source_tipo'].astype('category')
+        
         save_path = os.path.abspath(os.path.join(os.getcwd(), "../csv/movdebug_all_trip_instances.csv"))
         try:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
