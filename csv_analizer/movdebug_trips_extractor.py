@@ -164,6 +164,12 @@ def process_extracted_data(extracted_trips, extraction_complete, mo, os, pd):
         final_df['transportMode'] = final_df['transportMode'].fillna('UNAVAILABLE').astype('category')
         final_df['source_tipo'] = final_df['source_tipo'].astype('category')
         
+        # Force these columns to be explicit strings instead of generic 'object'
+        # This enables the text-search filter in the Marimo ui.table header.
+        final_df['trip_id'] = final_df['trip_id'].astype('string')
+        final_df['user_id'] = final_df['user_id'].astype('string')
+        final_df['source_criteria'] = final_df['source_criteria'].astype('string')
+        
         save_path = os.path.abspath(os.path.join(os.getcwd(), "../csv/movdebug_all_trip_instances.csv"))
         try:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
