@@ -86,6 +86,7 @@ def execute_extraction(engine, json, mo, pd):
                                 extracted_trips.append({
                                     "db_record_id": db_record_id,
                                     "source_tipo": tipo,
+                                    "source_criteria": ",".join(parsed.get("criteria", [])) if isinstance(parsed.get("criteria"), list) else "",
                                     "user_id": user_id,
                                     "trip_id": transport_event.get("id"),
                                     "transportMode": transport_event.get("transportMode"),
@@ -109,6 +110,7 @@ def execute_extraction(engine, json, mo, pd):
                                         extracted_trips.append({
                                             "db_record_id": db_record_id,
                                             "source_tipo": tipo,
+                                            "source_criteria": ",".join(parsed.get("criteria", [])) if isinstance(parsed.get("criteria"), list) else "",
                                             "user_id": user_id,
                                             "trip_id": event.get("id"),
                                             "transportMode": event.get("transportMode"),
@@ -125,6 +127,7 @@ def execute_extraction(engine, json, mo, pd):
                                 extracted_trips.append({
                                     "db_record_id": db_record_id,
                                     "source_tipo": tipo,
+                                    "source_criteria": ",".join(parsed.get("criteria", [])) if isinstance(parsed.get("criteria"), list) else "",
                                     "user_id": user_id,
                                     "trip_id": parsed.get("id"),
                                     "transportMode": parsed.get("transportMode"),
@@ -216,7 +219,47 @@ def verify_di_overlap(final_df, mo, pd):
     return matches, result
 
 @app.cell
-def render_results(csv_saved_status, db_status, final_df, mo, result):
+def viability_matrix(final_df, mo):
+    if final_df is not None:
+        # Group by trip_id to build the matrix
+        matrix = final_df.groupby("trip_id").agg(
+            has_DrivingInsights=("source_tipo", lambda x: (x == "DrivingInsights").any()),
+            has_UCU_CurrentEvent=("source_criteria", lambda x: x.str.contains("CURRENT_EVENT", na=False).any()),
+            count_UCU_CurrentEvent=("source_criteria", lambda x: x.str.contains("CURRENT_EVENT", na=False).sum()),
+            transportMode=("transportMode", "first")
+        ).reset_index()
+        
+        # Sort so trips without DrivingInsights but with UCU_CurrentEvent appear at top (to check coverage)
+        matrix = matrix.sort_values(by=["has_DrivingInsights", "has_UCU_CurrentEvent"], ascending=[True, False])
+        
+        matrix_ui = mo.ui.table(
+            matrix,
+            label="Matriz de Viabilidad: DrivingInsights vs UserContextUpdate (CURRENT_EVENT)",
+            pagination=True
+        )
+        
+        # Coverage check
+        di_only = matrix[(matrix["has_DrivingInsights"] == True) & (matrix["has_UCU_CurrentEvent"] == False)]
+        ucu_only = matrix[(matrix["has_DrivingInsights"] == False) & (matrix["has_UCU_CurrentEvent"] == True)]
+        
+        coverage_status = mo.md(f"""
+        ### Análisis de Cobertura
+        - **Trips con DrivingInsights:** {matrix["has_DrivingInsights"].sum()}
+        - **Trips con UCU (CURRENT_EVENT):** {matrix["has_UCU_CurrentEvent"].sum()}
+        - **Trips SOLO en DrivingInsights (No detectados por UCU):** {len(di_only)}
+        - **Trips SOLO en UCU (No detectados por DI):** {len(ucu_only)}
+        """)
+        
+        matrix_display = mo.vstack([
+            coverage_status,
+            matrix_ui
+        ])
+    else:
+        matrix_display = None
+    return matrix, matrix_display
+
+@app.cell
+def render_results(csv_saved_status, db_status, final_df, matrix_display, mo, result):
     if final_df is not None:
         table_ui = mo.ui.table(
             final_df,
@@ -228,9 +271,11 @@ def render_results(csv_saved_status, db_status, final_df, mo, result):
         display = mo.vstack([
             db_status,
             csv_saved_status,
-            mo.md("### Verificación de Cobertura (DI vs UCU)"),
+            mo.md("### Verificación de Cobertura (DI vs UCU Total)"),
             result,
-            mo.md("### Vista Previa de Datos"),
+            mo.md("### Matriz de Viabilidad (DI vs UCU CURRENT_EVENT)"),
+            matrix_display,
+            mo.md("### Vista Previa de Datos Completos"),
             table_ui
         ])
     else:
