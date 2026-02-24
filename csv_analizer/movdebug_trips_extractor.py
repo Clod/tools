@@ -175,7 +175,48 @@ def process_extracted_data(extracted_trips, extraction_complete, mo, os, pd):
     return csv_saved_status, final_df
 
 @app.cell
-def render_results(csv_saved_status, db_status, final_df, mo):
+def verify_di_overlap(final_df, mo, pd):
+    if final_df is not None:
+        # Filter for unique trip IDs in both types
+        di_trips = set(final_df[final_df["source_tipo"] == "DrivingInsights"]["trip_id"].unique())
+        ucu_trips = set(final_df[final_df["source_tipo"] == "UserContextUpdate"]["trip_id"].unique())
+        
+        total_di = len(di_trips)
+        matches = di_trips.intersection(ucu_trips)
+        match_count = len(matches)
+        
+        missing = di_trips - ucu_trips
+        
+        if total_di > 0:
+            percent = (match_count / total_di) * 100
+            if match_count == total_di:
+                result = mo.callout(
+                    f"✅ Verificación exitosa: Los {total_di} viajes de DrivingInsights están presentes en UserContextUpdate (100% match).",
+                    kind="success"
+                )
+            else:
+                # Extract transportMode for these missing trips from the DrivingInsights original records
+                missing_info = final_df[
+                    (final_df["trip_id"].isin(missing)) & 
+                    (final_df["source_tipo"] == "DrivingInsights")
+                ][["trip_id", "transportMode"]].drop_duplicates()
+
+                result = mo.vstack([
+                    mo.callout(
+                        f"⚠️ Verificación parcial: {match_count} de {total_di} viajes de DrivingInsights ({percent:.2f}%) encontrados en UserContextUpdate.",
+                        kind="warn"
+                    ),
+                    mo.md(f"**IDs Faltantes en UserContextUpdate ({len(missing)}):**"),
+                    mo.ui.table(missing_info) if len(missing) > 0 else mo.md("Ninguno")
+                ])
+        else:
+            result = mo.md("No hay viajes de `DrivingInsights` para comparar.")
+    else:
+        result = None
+    return matches, result
+
+@app.cell
+def render_results(csv_saved_status, db_status, final_df, mo, result):
     if final_df is not None:
         table_ui = mo.ui.table(
             final_df,
@@ -187,6 +228,8 @@ def render_results(csv_saved_status, db_status, final_df, mo):
         display = mo.vstack([
             db_status,
             csv_saved_status,
+            mo.md("### Verificación de Cobertura (DI vs UCU)"),
+            result,
             mo.md("### Vista Previa de Datos"),
             table_ui
         ])
