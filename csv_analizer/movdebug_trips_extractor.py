@@ -204,11 +204,11 @@ def verify_di_overlap(final_df, mo, pd):
                     kind="success"
                 )
             else:
-                # Extract transportMode for these missing trips from the DrivingInsights original records
+                # Extract transportMode and isProvisional for these missing trips from the DrivingInsights original records
                 missing_info = final_df[
                     (final_df["trip_id"].isin(missing)) & 
                     (final_df["source_tipo"] == "DrivingInsights")
-                ][["trip_id", "transportMode"]].drop_duplicates()
+                ][["trip_id", "transportMode", "isProvisional"]].drop_duplicates()
 
                 result = mo.vstack([
                     mo.callout(
