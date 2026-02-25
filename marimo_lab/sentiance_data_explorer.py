@@ -317,7 +317,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
     # Construir consulta SQL dinámica
-    base_query = f"SELECT TOP 100 * FROM VictaTMTK.dbo.{table_selector.value}"
+    base_query = f"SELECT TOP 300 * FROM VictaTMTK.dbo.{table_selector.value}"
     where_clauses = []
 
     # .value es cómo accedes al valor actual de CUALQUIER widget mo.ui

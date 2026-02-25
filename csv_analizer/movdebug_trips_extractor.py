@@ -247,6 +247,8 @@ def viability_matrix(final_df, mo):
         # Coverage check
         di_only = matrix[(matrix["has_DrivingInsights"] == True) & (matrix["has_UCU_CurrentEvent"] == False)]
         ucu_only = matrix[(matrix["has_DrivingInsights"] == False) & (matrix["has_UCU_CurrentEvent"] == True)]
+        # Missing entirely from both
+        neither_trips_ids = matrix[(matrix["has_DrivingInsights"] == False) & (matrix["has_UCU_CurrentEvent"] == False)]["trip_id"]
         
         coverage_status = mo.md(f"""
         ### Análisis de Cobertura
@@ -254,6 +256,7 @@ def viability_matrix(final_df, mo):
         - **Trips con UCU (CURRENT_EVENT):** {matrix["has_UCU_CurrentEvent"].sum()}
         - **Trips SOLO en DrivingInsights (No detectados por UCU):** {len(di_only)}
         - **Trips SOLO en UCU (No detectados por DI):** {len(ucu_only)}
+        - **Trips SIN DrivingInsights NI UCU (CURRENT_EVENT):** {len(neither_trips_ids)}
         """)
         
         matrix_display = mo.vstack([
@@ -262,10 +265,41 @@ def viability_matrix(final_df, mo):
         ])
     else:
         matrix_display = None
-    return matrix, matrix_display
+        neither_trips_ids = None
+    return coverage_status, di_only, matrix, matrix_display, matrix_ui, neither_trips_ids, ucu_only
 
 @app.cell
-def render_results(csv_saved_status, db_status, final_df, matrix_display, mo, result):
+def missing_from_both_table(final_df, mo, neither_trips_ids):
+    if final_df is not None and neither_trips_ids is not None and len(neither_trips_ids) > 0:
+        # Filter the full generic dataframe to only keep the rows of these strange trips
+        neither_df = final_df[final_df["trip_id"].isin(neither_trips_ids)]
+        
+        neither_table_ui = mo.ui.table(
+            neither_df,
+            label=f"Viajes sin DI ni UCU CURRENT_EVENT ({len(neither_trips_ids)} trips / {len(neither_df)} eventos)",
+            pagination=True,
+            max_height=600
+        )
+        
+        neither_display = mo.vstack([
+            mo.md(f"### Viajes Ausentes en Ambos (Anómalos)"),
+            mo.md("Estos viajes existen en *MovDebug_Eventos* pero no provienen ni de `DrivingInsights` ni de `UserContextUpdate` con `CURRENT_EVENT`. Generalmente provienen de `requestUserContext` o tipos misceláneos."),
+            neither_table_ui
+        ])
+    else:
+        neither_display = mo.md("*No hay viajes que falten en ambos orígenes simultáneamente.*") if final_df is not None else None
+    return neither_df, neither_display, neither_table_ui
+
+@app.cell
+def render_results(
+    csv_saved_status,
+    db_status,
+    final_df,
+    matrix_display,
+    mo,
+    neither_display,
+    result,
+):
     if final_df is not None:
         table_ui = mo.ui.table(
             final_df,
@@ -282,7 +316,8 @@ def render_results(csv_saved_status, db_status, final_df, matrix_display, mo, re
             mo.md("### Matriz de Viabilidad (DI vs UCU CURRENT_EVENT)"),
             matrix_display,
             mo.md("### Vista Previa de Datos Completos"),
-            table_ui
+            table_ui,
+            neither_display
         ])
     else:
         display = mo.vstack([
