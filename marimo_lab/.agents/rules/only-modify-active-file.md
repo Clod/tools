@@ -1,0 +1,1 @@
+* Never modify files other than the active file. If you need to modify another file, ask me to open it.
