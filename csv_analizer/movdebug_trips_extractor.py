@@ -224,6 +224,15 @@ def verify_di_overlap(final_df, mo, pd):
         result = None
     return matches, result
 
+# =============================================================================
+# CELDA: MATRIZ DE VIABILIDAD Y ANÁLISIS DE COBERTURA
+# =============================================================================
+# Esta celda agrupa todos los eventos por `trip_id` para crear una matriz comparativa.
+# Permite identificar qué viajes fueron detectados por `DrivingInsights`, cuáles
+# por `UserContextUpdate` (con criterio `CURRENT_EVENT`), y calcular estadísticas
+# de solapamiento y anomalías.
+#
+# Depende de: `final_df` (Dataframe consolidado) y `mo` (Marimo UI).
 @app.cell
 def viability_matrix(final_df, mo):
     if final_df is not None:
@@ -245,18 +254,22 @@ def viability_matrix(final_df, mo):
         )
         
         # Coverage check
+        total_trips = len(matrix)
         di_only = matrix[(matrix["has_DrivingInsights"] == True) & (matrix["has_UCU_CurrentEvent"] == False)]
         ucu_only = matrix[(matrix["has_DrivingInsights"] == False) & (matrix["has_UCU_CurrentEvent"] == True)]
         # Missing entirely from both
         neither_trips_ids = matrix[(matrix["has_DrivingInsights"] == False) & (matrix["has_UCU_CurrentEvent"] == False)]["trip_id"]
         
+        def get_pct(count):
+            return f"({(count / total_trips * 100):.1f}%)" if total_trips > 0 else "(0.0%)"
+
         coverage_status = mo.md(f"""
-        ### Análisis de Cobertura
-        - **Trips con DrivingInsights:** {matrix["has_DrivingInsights"].sum()}
-        - **Trips con UCU (CURRENT_EVENT):** {matrix["has_UCU_CurrentEvent"].sum()}
-        - **Trips SOLO en DrivingInsights (No detectados por UCU):** {len(di_only)}
-        - **Trips SOLO en UCU (No detectados por DI):** {len(ucu_only)}
-        - **Trips SIN DrivingInsights NI UCU (CURRENT_EVENT):** {len(neither_trips_ids)}
+        ### Análisis de Cobertura (Total Trips Únicos: {total_trips})
+        - **Trips con DrivingInsights:** {matrix["has_DrivingInsights"].sum()} {get_pct(matrix["has_DrivingInsights"].sum())}
+        - **Trips con UCU (CURRENT_EVENT):** {matrix["has_UCU_CurrentEvent"].sum()} {get_pct(matrix["has_UCU_CurrentEvent"].sum())}
+        - **Trips SOLO en DrivingInsights (Sin UCU CE):** {len(di_only)} {get_pct(len(di_only))}
+        - **Trips SOLO en UCU (Sin DrivingInsights):** {len(ucu_only)} {get_pct(len(ucu_only))}
+        - **Trips SIN DrivingInsights NI UCU (CURRENT_EVENT):** {len(neither_trips_ids)} {get_pct(len(neither_trips_ids))}
         """)
         
         matrix_display = mo.vstack([
