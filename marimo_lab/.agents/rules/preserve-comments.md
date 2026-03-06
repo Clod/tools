@@ -1,4 +1,5 @@
-* Never remove or modify existing comments in code.
-* Preserve all inline comments, docstrings, and TODOs verbatim.
-* When editing, highlight only the specific lines to change without touching comments.
-* Each time I ask you to add a Marimo cell, add a comprehensive comment in Spanish above the cell explaining what it does and what it depends on.
+- Never remove or modify existing comments in code.
+- Preserve all inline comments, docstrings, and TODOs verbatim.
+- When editing, highlight only the specific lines to change without touching comments.
+- Each time I ask you to add a Marimo cell, add a comprehensive comment in Spanish above the cell explaining what it does and what it depends on.
+- Cada celda de Marimo tiene que tener un encabezado con una descripción detallada de lo que hace. El código tiene que estar comentado para que sea fácilmente entendible aún por no expertos. Los comentarios deben ser en Castellano.
