@@ -28,6 +28,16 @@ Se recomienda el uso de `uv` (el gestor de dependencias ultrarrápido de Rust) p
 - **Modo Secuencial Puro (Terminal):**
   `uv run primary_scores.py` (Ejecuta la lógica del script base de principio a fin de forma programática por consola)
 """
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#   "marimo",
+#   "pandas==2.3.3",
+#   "sqlalchemy==2.0.45",
+#   "pymssql",
+#   "python-dotenv==1.2.1",
+# ]
+# ///
 import marimo
 
 __generated_with = "0.19.6"
@@ -84,9 +94,41 @@ def _(create_engine, mo, os):
 
 
 @app.cell
-def _(mo, pd):
+def _(mo, os):
+    # Selector visual de directorio: seleccioná cualquier archivo dentro del directorio CSV
+    default_csv_dir = os.path.abspath(os.path.join(os.getcwd(), "../csv"))
+    file_browser = mo.ui.file_browser(
+        initial_path=default_csv_dir,
+        label="📁 Seleccioná cualquier archivo dentro del directorio CSV:",
+        multiple=False,
+    )
+    mo.vstack([
+        mo.md("## 📂 Directorio de Datos"),
+        mo.md("> Navegá hasta el directorio y seleccioná **cualquier archivo** dentro. El notebook usará ese directorio para leer todos los CSVs."),
+        file_browser,
+    ])
+    return file_browser,
+
+
+@app.cell
+def _(file_browser, mo):
+    # Bloquear ejecución hasta que el usuario seleccione un archivo
+    mo.stop(
+        not file_browser.value,
+        mo.callout(
+            mo.md("## 📂 Seleccioná un archivo\nNavegá hasta el directorio de CSVs y seleccioná **cualquier archivo** dentro de él para continuar."),
+            kind="warn"
+        )
+    )
+    base_dir = str(file_browser.path(0).parent)
+    mo.md(f"✅ **Directorio activo:** `{base_dir}`")
+    return base_dir,
+
+
+@app.cell
+def _(base_dir, mo, os, pd):
     # Carga del archivo CSV principal con puntajes de seguridad
-    csv_path = "../csv/primary_safety_scores_transports.csv"
+    csv_path = os.path.join(base_dir, "primary_safety_scores_transports.csv")
 
     df = None
     table = None
@@ -382,9 +424,9 @@ def _(mo, st_table):
 
 
 @app.cell(hide_code=True)
-def _(pd):
+def _(base_dir, os, pd):
     # Carga del archivo CSV secundario (secondary_safety_scores_transports.csv)
-    sec_csv_path = "../csv/secondary_safety_scores_transports.csv"
+    sec_csv_path = os.path.join(base_dir, "secondary_safety_scores_transports.csv")
     sec_df = None
     if pd.io.common.file_exists(sec_csv_path):
         sec_df = pd.read_csv(sec_csv_path)
@@ -521,11 +563,11 @@ def _(db_df, mo, pd, sec_df, st_df):
 
 
 @app.cell
-def _(mo, pd, json):
+def _(base_dir, json, mo, os, pd):
     # Carga de archivos de eventos de manejo (Driving Events)
     # Estos archivos contienen el detalle de los eventos en formato JSON por cada columna
-    path_all = "../csv/driving_events_all.csv"
-    path_sig = "../csv/driving_events_significant.csv"
+    path_all = os.path.join(base_dir, "driving_events_all.csv")
+    path_sig = os.path.join(base_dir, "driving_events_significant.csv")
     
     ev_all_df = pd.read_csv(path_all) if pd.io.common.file_exists(path_all) else None
     ev_sig_df = pd.read_csv(path_sig) if pd.io.common.file_exists(path_sig) else None
@@ -663,9 +705,9 @@ def _(inspector_display):
 
 
 @app.cell
-def _(engine, mo, pd):
+def _(base_dir, engine, mo, os, pd):
     # Consistencia de Transportes (CSV vs DB)
-    transports_csv_path = "../csv/transports.csv"
+    transports_csv_path = os.path.join(base_dir, "transports.csv")
     
     def get_consistency_table():
         if not (pd.io.common.file_exists(transports_csv_path) and engine is not None):
