@@ -1,3 +1,29 @@
+"""
+Analizador y Extractor de Viajes de MovDebug_Eventos
+
+## 🎯 ¿Qué hace este script?
+Este notebook interactivo extrae, procesa y analiza eventos vinculados a viajes (estado `IN_TRANSPORT`) directamente desde la tabla `MovDebug_Eventos`. 
+
+**Funciones principales:**
+1. **Extracción unificada:** Filtra eventos relevantes (`DrivingInsights`, `UserContextUpdate`, etc.) y parsea su contenido JSON para desanidar y aplanar los detalles del viaje.
+2. **Seguimiento cronológico:** Agrupa múltiples registros de base de datos que referencian al mismo `trip_id`, permitiendo observar cómo la plataforma reporta y actualiza los metadatos de un viaje específico a lo largo del tiempo.
+3. **Análisis de Cobertura (Matriz):** Documenta y compara si los viajes reportados vía la API de `DrivingInsights` también ingresan correctamente bajo `UserContextUpdate` (con el trigger `CURRENT_EVENT`), facilitando la detección de brechas.
+4. **Exportación:** Exporta automáticamente el dataset resultante como un archivo procesado a `../csv/movdebug_all_trip_instances.csv`.
+
+## 🚀 ¿Cómo correrlo?
+Este reporte es un Marimo notebook (https://marimo.io/) escrito en Python puro.
+
+**Requisitos Previos:**
+- **Credenciales SQL:** El script intentará leer un archivo `.env` ubicado en la ruta relativa `../marimo_lab/.env` con las variables de conexión a SQL Server (`DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_PORT`).
+- **Dependencias:** Entorno de python con `marimo`, `pandas`, `sqlalchemy`, `pymssql`, y `python-dotenv`.
+
+**Métodos de Ejecución:**
+- **Modo Interactivo (Recomendado para análisis visual):** Levanta el notebook como aplicación en tu navegador.
+  `marimo edit movdebug_trips_extractor.py` (Modo editor)
+  `marimo run movdebug_trips_extractor.py` (Modo sólo-lectura)
+- **Modo Exportador Secuencial (Vía Terminal):** Ejecuta todo el flujo lógico por consola.
+  `python movdebug_trips_extractor.py`
+"""
 import marimo
 
 __generated_with = "0.19.6"
@@ -21,7 +47,33 @@ def setup():
 def intro_ui(mo):
     mo.md(r"""
     # Analizador y Extractor de Viajes de MovDebug_Eventos
-    Este notebook extrae múltiples tipos de eventos (`tipo`) desde la tabla `MovDebug_Eventos` para aplanar y listar todas las instancias de un mismo viaje (`IN_TRANSPORT`). El objetivo es observar cómo se reporta y actualiza un mismo viaje a lo largo del tiempo.
+    
+    ## 🎯 ¿Qué hace este script?
+    Este notebook interactivo extrae, procesa y analiza eventos vinculados a viajes (estado `IN_TRANSPORT`) directamente desde la tabla `MovDebug_Eventos`. 
+    
+    **Funciones principales:**
+    1. **Extracción unificada:** Filtra eventos relevantes (`DrivingInsights`, `UserContextUpdate`, etc.) y parsea su contenido JSON para desanidar y aplanar los detalles del viaje.
+    2. **Seguimiento cronológico:** Agrupa múltiples registros de base de datos que referencian al mismo `trip_id`, permitiendo observar cómo la plataforma reporta y actualiza los metadatos de un viaje específico a lo largo del tiempo.
+    3. **Análisis de Cobertura (Matriz):** Documenta y compara si los viajes reportados vía la API de `DrivingInsights` también ingresan correctamente bajo `UserContextUpdate` (con el trigger `CURRENT_EVENT`), facilitando la detección de brechas.
+    4. **Exportación:** Exporta automáticamente el dataset resultante como un archivo procesado a `../csv/movdebug_all_trip_instances.csv`.
+
+    ## 🚀 ¿Cómo correrlo?
+    Este reporte es un [Marimo notebook](https://marimo.io/) escrito en Python puro.
+
+    **Requisitos Previos:**
+    - **Credenciales SQL:** El script intentará leer un archivo `.env` ubicado en la ruta relativa `../marimo_lab/.env` con las variables de conexión a SQL Server (`DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_PORT`).
+    - **Dependencias:** Entorno de python con `marimo`, `pandas`, `sqlalchemy`, `pymssql`, y `python-dotenv`.
+
+    **Métodos de Ejecución:**
+    - **Modo Interactivo (Recomendado para análisis visual):** Levanta el notebook como aplicación en tu navegador. Te permitirá revisar los hallazgos en formato tabla interactivo y ver reportes de errores si los hubiera.
+      ```bash
+      marimo edit movdebug_trips_extractor.py  # Modo editor para visualizar o modificar
+      marimo run movdebug_trips_extractor.py   # Modo sólo-lectura de la App web
+      ```
+    - **Modo Exportador Secuencial (Vía Terminal):** Ejecuta todo el flujo lógico por consola (conexión a DB, lectura, parsing y guardado). Al finalizar depositará el CSV en el directorio, útil para trabajos desatendidos o crons.
+      ```bash
+      python movdebug_trips_extractor.py
+      ```
     """)
     return
 

@@ -1,3 +1,33 @@
+"""
+Analizador Multi-Fuente de Puntajes de Seguridad y Eventos (Safety Scores & Events)
+
+## 🎯 ¿Qué hace este script?
+Este notebook interactivo es una herramienta integral de validación y análisis que compara los puntajes de manejo y la detección de eventos entre diferentes orígenes de datos (CSVs locales vs. Tablas SQL).
+
+**Funciones principales:**
+1. **Comparativa de Puntajes Primarios:** Cruza los scores (legal, smooth, focus/attention, overall) provenientes del archivo local `primary_safety_scores_transports.csv` contra los valores parseados del JSON en la tabla `SentianceEventos` y los valores procesados finales en la tabla `PuntajesPrirmariosTr`.
+2. **Comparativa de Puntajes Secundarios y Eventos Fuertes:** Cruza métricas detalladas (aceleraciones fuertes, frenadas, giros, etc.) entre el archivo `secondary_safety_scores_transports.csv`, la tabla subyacente de `SentianceEventos` y la tabla final `PuntajesSecundariosTr`.
+3. **Inspector Detallado de Eventos:** Permite seleccionar un viaje específico (`transport_id`) y desglosar evento por evento comparando lo extraído en `driving_events_all.csv` contra el filtro de `driving_events_significant.csv`.
+4. **Verificación de Consistencia (Salud de Datos):** Contrasta el universo base de viajes en `transports.csv` contra la base de datos para asegurar que los viajes existan, presenten registros y tengan consistencia en todas las tablas (`Conduccion`, `Eventos`, `PuntajesPrirmariosTr`, etc.).
+
+## 🚀 ¿Cómo correrlo?
+Este reporte es un Marimo notebook (https://marimo.io/) escrito de forma declarativa y estructurada en Python. 
+
+**Requisitos Previos:**
+- **Credenciales SQL Server:** Requiere un archivo `.env` ubicado en la ruta relativa `../marimo_lab/.env` con las variables de conexión (`DB_SERVER`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_PORT`).
+- **Archivos Base (Inputs):** El directorio `../csv/` debe existir y encontrarse poblado con los archivos extraídos previamente (EJ: `primary_safety_scores_transports.csv`, `transports.csv`).
+- **Dependencias del Entorno:** Requiere `marimo`, `pandas`, `sqlalchemy`, `pymssql`, y `python-dotenv`.
+
+**Métodos de Ejecución (Usando `uv`):**
+Se recomienda el uso de `uv` (el gestor de dependencias ultrarrápido de Rust) para ejecutar entornos inmutables y herramientas como Marimo de forma limpia, sin necesidad de instalar dependencias globalmente.
+
+- **Modo Interactivo (Recomendado para análisis visual exploratorio):** Levanta el notebook como aplicación web colaborativa en tu navegador.
+  `uvx marimo edit primary_scores.py` (Modo editor Jupyter-like: para modificar el código o ver las ejecuciones celda a celda)
+  `uvx marimo run primary_scores.py` (Modo dashboard app: interfaz visual limpia de sólo-lectura)
+
+- **Modo Secuencial Puro (Terminal):**
+  `uv run primary_scores.py` (Ejecuta la lógica del script base de principio a fin de forma programática por consola)
+"""
 import marimo
 
 __generated_with = "0.19.6"
