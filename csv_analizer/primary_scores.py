@@ -95,34 +95,59 @@ def _(create_engine, mo, os):
 
 @app.cell
 def _(mo, os):
-    # Selector visual de directorio: seleccioná cualquier archivo dentro del directorio CSV
+    # Selector de directorio por texto (en lugar de file_browser para evitar confusión)
     default_csv_dir = os.path.abspath(os.path.join(os.getcwd(), "../csv"))
-    file_browser = mo.ui.file_browser(
-        initial_path=default_csv_dir,
-        label="📁 Seleccioná cualquier archivo dentro del directorio CSV:",
-        multiple=False,
+    dir_input = mo.ui.text(
+        value=default_csv_dir,
+        label="📁 Directorio de CSVs:",
+        full_width=True
     )
-    mo.vstack([
-        mo.md("## 📂 Directorio de Datos"),
-        mo.md("> Navegá hasta el directorio y seleccioná **cualquier archivo** dentro. El notebook usará ese directorio para leer todos los CSVs."),
-        file_browser,
-    ])
-    return file_browser,
+    
+    start_btn = mo.ui.run_button(
+        label="▶️ Iniciar Procesamiento",
+        kind="success"
+    )
+    
+    return default_csv_dir, dir_input, start_btn
 
 
 @app.cell
-def _(file_browser, mo):
-    # Bloquear ejecución hasta que el usuario seleccione un archivo
+def _(dir_input, mo, os, start_btn):
+    # Panel de control de selección
+    control_panel = mo.vstack([
+        mo.md("## 📂 Selección de Datos"),
+        mo.md("> Verificá o modificá la ruta donde se encuentran los archivos CSV extraídos y luego hacé click en el botón de abajo."),
+        dir_input,
+        start_btn
+    ])
+
+    # Bloquear ejecución hasta que el usuario presione el botón
     mo.stop(
-        not file_browser.value,
-        mo.callout(
-            mo.md("## 📂 Seleccioná un archivo\nNavegá hasta el directorio de CSVs y seleccioná **cualquier archivo** dentro de él para continuar."),
-            kind="warn"
-        )
+        not start_btn.value,
+        control_panel
     )
-    base_dir = str(file_browser.path(0).parent)
-    mo.md(f"✅ **Directorio activo:** `{base_dir}`")
-    return base_dir,
+
+    # Bloquear si la ruta no existe (una vez que le dio play)
+    mo.stop(
+        not os.path.exists(dir_input.value),
+        mo.vstack([
+            control_panel,
+            mo.callout(
+                f"❌ El directorio `{dir_input.value}` no existe. Modificá la ruta y volvé a presionar el botón.",
+                kind="danger"
+            )
+        ])
+    )
+    
+    base_dir = dir_input.value
+    
+    dir_ui = mo.vstack([
+        control_panel,
+        mo.md(f"✅ **Procesando desde:** `{base_dir}`")
+    ])
+    
+    dir_ui
+    return base_dir, control_panel, dir_ui
 
 
 @app.cell
@@ -134,7 +159,7 @@ def _(base_dir, mo, os, pd):
     table = None
     stats_table = None
 
-    if pd.io.common.file_exists(csv_path):
+    if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
         table = mo.ui.table(df, label="Grilla de Puntajes (CSV Primario)", selection=None, pagination=True, max_height=500)
 
@@ -343,16 +368,35 @@ def _(db_df, df, mo, pd, pt_df):
             pagination=True,
             max_height=500
         )
-    return (comparison_table,)
+        
+        # Calcular estadísticas rápidas de faltantes
+        total_viajes = len(merged)
+        faltantes_se = len(merged[merged['legal_se'] == '---'])
+        faltantes_pt = len(merged[merged['legal_pt'] == '---'])
+        
+        se_pct = (faltantes_se / total_viajes * 100) if total_viajes > 0 else 0
+        pt_pct = (faltantes_pt / total_viajes * 100) if total_viajes > 0 else 0
+        
+        summary_ui = mo.callout(
+            mo.md(
+                f"**Resumen de Cobertura (Total: {total_viajes} viajes en CSV):**\n"
+                f"- ❌ **No encontrados en `SentianceEventos`:** {faltantes_se} viajes ({se_pct:.1f}%)\n"
+                f"- ❌ **No encontrados en `PuntajesPrimariosTr`:** {faltantes_pt} viajes ({pt_pct:.1f}%)"
+            ),
+            kind="info" if faltantes_se == 0 and faltantes_pt == 0 else "warn"
+        )
+        
+    return comparison_table, summary_ui
 
 
 @app.cell
-def _(comparison_table, mo):
-    # Renderizado de la tabla comparativa de puntajes primarios
+def _(comparison_table, summary_ui, mo):
+    # Renderizado de la tabla comparativa de puntajes primarios y su resumen
     mo.vstack([
         mo.md("## 📊 Comparativa (primary_safety_scores_transports.csv vs SentianceEventos vs PuntajesPrimariosTr)"),
+        summary_ui,
         comparison_table
-    ]) if comparison_table is not None else None
+    ]) if comparison_table is not None and summary_ui is not None else None
     return
 
 
@@ -428,7 +472,7 @@ def _(base_dir, os, pd):
     # Carga del archivo CSV secundario (secondary_safety_scores_transports.csv)
     sec_csv_path = os.path.join(base_dir, "secondary_safety_scores_transports.csv")
     sec_df = None
-    if pd.io.common.file_exists(sec_csv_path):
+    if os.path.exists(sec_csv_path):
         sec_df = pd.read_csv(sec_csv_path)
     return (sec_df,)
 
@@ -569,8 +613,8 @@ def _(base_dir, json, mo, os, pd):
     path_all = os.path.join(base_dir, "driving_events_all.csv")
     path_sig = os.path.join(base_dir, "driving_events_significant.csv")
     
-    ev_all_df = pd.read_csv(path_all) if pd.io.common.file_exists(path_all) else None
-    ev_sig_df = pd.read_csv(path_sig) if pd.io.common.file_exists(path_sig) else None
+    ev_all_df = pd.read_csv(path_all) if os.path.exists(path_all) else None
+    ev_sig_df = pd.read_csv(path_sig) if os.path.exists(path_sig) else None
     
     def parse_counts(df_to_parse):
         if df_to_parse is None:
@@ -710,7 +754,7 @@ def _(base_dir, engine, mo, os, pd):
     transports_csv_path = os.path.join(base_dir, "transports.csv")
     
     def get_consistency_table():
-        if not (pd.io.common.file_exists(transports_csv_path) and engine is not None):
+        if not (os.path.exists(transports_csv_path) and engine is not None):
             return None
 
         trans_df = pd.read_csv(transports_csv_path)
