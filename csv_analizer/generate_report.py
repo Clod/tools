@@ -1,3 +1,33 @@
+"""
+Generador de Reporte: Comparación IKE vs Sentiance Payload
+
+## 🎯 ¿Qué hace este script?
+Este script automatiza la creación de una matriz de compatibilidad entre el **Documento de Exportación de Datos IKE** (el estándar requerido por el cliente) y la estructura real de datos emitida por el **SDK de Sentiance**.
+
+**Funciones principales:**
+1. **Mapeo de Atributos:** Traduce términos de negocio IKE (ej: `suavidad`, `atencion`) a las llaves técnicas de Sentiance (`smoothScore`, `focusScore`).
+2. **Análisis de Disponibilidad:** Evalúa cada campo requerido por IKE contra los objetos JSON reales extraídos de la base de datos (`transportEvent` y `safetyScores`).
+3. **Calificación de Estado:** Clasifica la disponibilidad en:
+   - ✅ **Disponible:** El dato existe de forma nativa.
+   - ⚠️ **Diferente/Derivable:** Requiere transformación lógica o cálculo intermedio.
+   - ❌ **No Disponible:** Datos que no se incluyen en el payload estándar (como coordenadas exactas de eventos bruscos).
+4. **Generación de Markdown:** Produce un reporte limpio en formato `.md` para presentación técnica.
+
+## 🚀 ¿Cómo correrlo?
+Este es un script de utilidad estándar de Python.
+
+**Requisitos:**
+- Tener el archivo `../ike_tables.json` actualizado con la definición de tablas del cliente.
+- Ejecutar desde el directorio `csv_analizer/`.
+
+**Comando:**
+```bash
+python generate_report.py
+```
+
+**Salida:**
+El reporte se generará en: `../Reporte_IKE_vs_Sentiance.md`
+"""
 import json
 import os
 
