@@ -368,10 +368,63 @@ def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
 
 
 # =============================================================================
+# CELDA 7b: ENRIQUECIMIENTO - COLUMNA "Role"
+# =============================================================================
+@app.cell(hide_code=True)
+def _(df, json):
+    def _find_occupant_role(obj):
+        # Re-parse string values — handles double-encoded JSON stored in SQL Server
+        if isinstance(obj, str):
+            stripped = obj.strip()
+            if stripped.startswith(("{", "[")):
+                try:
+                    return _find_occupant_role(json.loads(stripped))
+                except Exception:
+                    pass
+            return None
+        if isinstance(obj, dict):
+            if "occupantRole" in obj:
+                return obj["occupantRole"]
+            for v in obj.values():
+                result = _find_occupant_role(v)
+                if result is not None:
+                    return result
+        elif isinstance(obj, list):
+            for item in obj:
+                result = _find_occupant_role(item)
+                if result is not None:
+                    return result
+        return None
+
+    def _extract_role(row):
+        for col in row.index:
+            val = row[col]
+            if val is None:
+                continue
+            result = _find_occupant_role(val)
+            if result is not None:
+                return str(result)
+        return None
+
+    df_enriched = df.copy()
+    roles = df_enriched.apply(_extract_role, axis=1).astype("string")
+
+    # Case-insensitive search for the "Tipo" column
+    tipo_col = next((c for c in df_enriched.columns if c.lower() == "tipo"), None)
+    if tipo_col is not None:
+        tipo_idx = df_enriched.columns.get_loc(tipo_col)
+        df_enriched.insert(tipo_idx + 1, "Role", roles)
+    else:
+        df_enriched.insert(0, "Role", roles)
+
+    return (df_enriched,)
+
+
+# =============================================================================
 # CELDA 8: TABLA DE DATOS INTERACTIVA
 # =============================================================================
 @app.cell(hide_code=True)
-def _(df, mo):
+def _(df_enriched, mo):
     # ==========================================================================
     # mo.ui.table() - TABLA DE DATOS INTERACTIVA
     # ==========================================================================
@@ -381,7 +434,7 @@ def _(df, mo):
     #   data: DataFrame o lista de diccionarios
     #   selection: "single" | "multi" | None
     #       - "single": el usuario puede seleccionar una fila
-    #       - "multi": el usuario puede seleccionar múltiples filas  
+    #       - "multi": el usuario puede seleccionar múltiples filas
     #       - None: no se permite selección
     #   label: texto descriptivo
     #   page_size: filas por página (por defecto 10)
@@ -390,7 +443,7 @@ def _(df, mo):
     # SELECCIÓN REACTIVA:
     #   table.value devuelve un DataFrame de la(s) fila(s) seleccionada(s)
     #   Cuando la selección cambia, ¡las celdas que usan table.value se vuelven a ejecutar!
-    table = mo.ui.table(df, selection="single", label="Seleccione una fila para ver detalles")
+    table = mo.ui.table(df_enriched, selection="single", label="Seleccione una fila para ver detalles")
     table
     return (table,)
 
@@ -430,7 +483,7 @@ def _(json, mo, table):
             # =================================================================
             # mo.ui.text_area() - ÁREA DE TEXTO MULTILÍNEA
             # =================================================================
-            # Como text() pero para contenido de varias líneas. 
+            # Como text() pero para contenido de varias líneas.
             #   disabled=True lo hace de solo lectura (solo visualización)
             #   rows: número de filas de texto visibles
             field_ui = mo.vstack([
