@@ -447,7 +447,7 @@ def _(json, mo, table):
                 elif isinstance(val, (dict, list)):
                     parsed = val
                     is_json = True
-            except:
+            except Exception:
                 pass
 
             if is_json:
@@ -539,7 +539,7 @@ def _(json, mo, pd, table):
                 try:
                     geo_parsed = json.loads(geo_val)
                     find_geo_structures(geo_parsed, geo_col)
-                except:
+                except Exception:
                     pass
             elif isinstance(geo_val, (dict, list)):
                 find_geo_structures(geo_val, geo_col)
