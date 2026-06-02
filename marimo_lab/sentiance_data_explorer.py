@@ -414,7 +414,7 @@ def _(json, mo, table):
             if is_json:
                 field_ui = mo.vstack([
                     mo.md(f"**{col}**"),
-                    mo.tree(parsed)
+                    mo.tree(parsed).style({"max-height": "800px", "overflow-y": "auto"})
                 ], gap=0.5)
                 right_items.append(field_ui)
             else:
