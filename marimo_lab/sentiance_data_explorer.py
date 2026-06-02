@@ -301,6 +301,19 @@ def _(end_dt, engine, mo, run_button, sid_input, start_dt, table_selector):
     if end:
         where_clauses.append(f"fechahora <= '{end}'")
 
+    # ==========================================================================
+    # GUARDA - BLOQUEAR ESCANEO COMPLETO SIN FILTROS
+    # ==========================================================================
+    # Sin límite TOP, una consulta sin ningún filtro traería toda la tabla.
+    # Exigimos al menos un filtro (Sentiance ID o rango de fechas) antes de ejecutar.
+    mo.stop(
+        not where_clauses,
+        mo.md(
+            "⚠️ *Aplique al menos un filtro (**Sentiance ID** o un **rango de fechas**) "
+            "antes de buscar. Una consulta sin filtros traería la tabla completa.*"
+        ).callout(kind="warn"),
+    )
+
     query = base_query
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
