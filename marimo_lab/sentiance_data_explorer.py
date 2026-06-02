@@ -233,6 +233,14 @@ def _(mo):
     #   value: valor inicial (opcional)
     sid_input = mo.ui.text(label="Sentiance ID", placeholder="Ingrese ID...")
 
+    # ==========================================================================
+    # mo.ui.run_button() - BOTÓN PARA EJECUTAR LA CONSULTA BAJO DEMANDA
+    # ==========================================================================
+    # A diferencia de los demás widgets, este NO dispara la consulta al cambiar
+    # los filtros. La celda de consulta se detiene (mo.stop) hasta que el usuario
+    # lo presiona. Esto evita cargar toda la base de datos al abrir la app.
+    run_button = mo.ui.run_button(label="🔍 Buscar")
+
     # mo.ui.datetime() - Selector de fecha y hora
     #   label: texto de la etiqueta
     #   value: fecha/hora inicial (opcional)
@@ -254,15 +262,31 @@ def _(mo):
     #   gap: espacio entre elementos (en unidades rem, ~16px)
     #   align: "start", "center", "end", "stretch"
     #   justify: "start", "center", "end", "space-between", "space-around"
-    filter_ui = mo.hstack([sid_input, start_dt, end_dt], gap=2)
+    # El botón de búsqueda se apila DEBAJO del campo de Sentiance ID.
+    filter_ui = mo.hstack(
+        [mo.vstack([sid_input, run_button], gap=0.5), start_dt, end_dt],
+        gap=2,
+        align="start",
+    )
     filter_ui
-    return end_dt, sid_input, start_dt
+    return end_dt, run_button, sid_input, start_dt
 
 
 @app.cell(hide_code=True)
-def _(end_dt, engine, mo, sid_input, start_dt, table_selector):
-    # Construir consulta SQL dinámica
-    base_query = f"SELECT TOP 300 * FROM VictaTMTK.dbo.{table_selector.value}"
+def _(end_dt, engine, mo, run_button, sid_input, start_dt, table_selector):
+    # ==========================================================================
+    # COMPUERTA DE EJECUCIÓN - mo.stop()
+    # ==========================================================================
+    # Detiene esta celda (y todas las que dependen de ella) hasta que el usuario
+    # presione el botón "Buscar". Así la app NO consulta la base al iniciarse.
+    mo.stop(
+        not run_button.value,
+        mo.md("👆 *Configure los filtros y presione **🔍 Buscar** para ejecutar la consulta.*").callout(kind="info"),
+    )
+
+    # Construir consulta SQL dinámica (sin límite TOP: traemos todos los eventos
+    # que coincidan con los filtros aplicados).
+    base_query = f"SELECT * FROM VictaTMTK.dbo.{table_selector.value}"
     where_clauses = []
 
     # .value es cómo accedes al valor actual de CUALQUIER widget mo.ui
@@ -349,7 +373,9 @@ def _(df, json):
         return None
 
     df_enriched = df.copy()
-    roles = df_enriched.apply(_extract_role, axis=1).astype("string")
+    # "category" dtype triggers marimo's value-frequency chips for this column
+    # (marimo only shows summaries for categorical/numeric/temporal columns)
+    roles = df_enriched.apply(_extract_role, axis=1).astype("category")
 
     # Case-insensitive search for the "Tipo" column
     tipo_col = next((c for c in df_enriched.columns if c.lower() == "tipo"), None)
