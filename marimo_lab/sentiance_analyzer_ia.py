@@ -588,9 +588,43 @@ def __(mo):
 
 @app.cell
 def __(analyze_btn, analyzer, json, json_input, logger, mo, view_selector):
+    import ast
     import traceback
     import time
-    
+
+    def parse_payload(text):
+        """Parsea JSON, o la representacion de un dict de Python.
+
+        Los datos del SDK suelen llegar como repr de un dict de Python
+        (`True` / `False` / `None` y comillas simples) en vez de JSON, porque
+        se copian desde una consola o desde el explorador de datos.
+        `ast.literal_eval` solo evalua literales -numeros, cadenas, booleanos,
+        listas y diccionarios-, de modo que no ejecuta codigo.
+
+        Devuelve (objeto, fue_convertido). Si tampoco es un literal valido,
+        propaga el error original de JSON, que indica linea y columna.
+
+        Exige un objeto o una lista en la raiz: un escalar suelto como `42`
+        es JSON valido, pero produciria un analisis vacio en vez de un error.
+        """
+        def require_container(obj, on_error):
+            if not isinstance(obj, (dict, list)):
+                raise on_error from None
+            return obj
+
+        not_a_container = json.JSONDecodeError(
+            "Se esperaba un objeto o una lista en la raiz", text or "", 0
+        )
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as json_error:
+            try:
+                obj = ast.literal_eval(text)
+            except (ValueError, SyntaxError, MemoryError, RecursionError):
+                raise json_error from None
+            return require_container(obj, json_error), True
+        return require_container(parsed, not_a_container), False
+
     # This cell ONLY triggers when the run_button is clicked
     ts = time.strftime("%H:%M:%S")
     
@@ -603,9 +637,20 @@ def __(analyze_btn, analyzer, json, json_input, logger, mo, view_selector):
                  logger.warning("Empty JSON input provided")
                  rendered_output = mo.md("⚠️ **Please provide some JSON data**")
             else:
-                json_obj = json.loads(raw_input)
-                logger.info("JSON input successfully parsed")
-                
+                json_obj, was_python_literal = parse_payload(raw_input)
+                if was_python_literal:
+                    logger.info(
+                        "Input parsed as a Python literal (True/False/None) "
+                        "and converted to JSON"
+                    )
+                    conversion_notice = (
+                        "> ℹ️ La entrada era un diccionario de Python, no JSON. "
+                        "Se convirtio automaticamente.\n\n"
+                    )
+                else:
+                    logger.info("JSON input successfully parsed")
+                    conversion_notice = ""
+
                 with mo.status.spinner(title="Contacting AI...") as status_box:
                     result = analyzer.analyze_json(json_obj, view=view_selector.value)
                 
@@ -621,7 +666,7 @@ def __(analyze_btn, analyzer, json, json_input, logger, mo, view_selector):
                 rendered_output = mo.md(f"""
 ### ✅ Analysis Complete (at {ts})
 
-**Keywords:** {', '.join(result['json_keywords'][:8])}
+{conversion_notice}**Keywords:** {', '.join(result['json_keywords'][:8])}
 **Docs Used:** {', '.join(result['selected_files']) if result['selected_files'] else 'None found'}
 
 ---
@@ -631,7 +676,34 @@ def __(analyze_btn, analyzer, json, json_input, logger, mo, view_selector):
                  
         except json.JSONDecodeError as e:
             logger.error(f"JSON Decode Error: {e}")
-            rendered_output = mo.md(f"❌ **Invalid JSON**: {e}")
+
+            # Mostrar la linea exacta que fallo con un cursor en la columna.
+            # El mensaje crudo de json solo da numeros, que obligan a contar
+            # lineas a mano sobre un JSON largo.
+            input_lines = raw_input.splitlines()
+            if 1 <= e.lineno <= len(input_lines):
+                bad_line = input_lines[e.lineno - 1]
+                cursor = " " * max(e.colno - 1, 0) + "^"
+                location = f"\n```\n{bad_line}\n{cursor}\n```\n"
+            else:
+                location = ""
+
+            # "Expecting value" es casi siempre un dict de Python pegado como
+            # si fuera JSON. Los otros mensajes ya son autoexplicativos.
+            if e.msg == "Expecting value":
+                hint = (
+                    "\nEsto suele pasar cuando el texto es la representacion de un "
+                    "**diccionario de Python**, no JSON. Revisa que no haya "
+                    "`None`, `True` o `False`, que en JSON se escriben `null`, "
+                    "`true` y `false`."
+                )
+            else:
+                hint = ""
+
+            rendered_output = mo.md(
+                f"❌ **JSON invalido** — {e.msg}, linea {e.lineno}, columna {e.colno}"
+                f"\n{location}{hint}"
+            )
         except Exception as e:
             logger.error(f"Critical Exception: {e}\n{traceback.format_exc()}")
             rendered_output = mo.vstack([
