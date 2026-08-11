@@ -160,7 +160,7 @@ def __(mo):
 
 
 @app.cell
-def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
+def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, logger, requests):
     """LLM API caller."""
 
     # Model selection - CHANGE THIS TO SAVE MONEY
@@ -200,7 +200,7 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, requests):
 
 
 @app.cell
-def __(KEYWORDS_INDEX, json):
+def __(CONCEPTS_FILE, KEYWORDS_INDEX, json):
     """Load keyword index."""
     
     with open(KEYWORDS_INDEX, 'r') as f:
@@ -220,7 +220,7 @@ def __(KEYWORDS_INDEX, json):
 
 
 @app.cell
-def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, re):
+def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, logger, re):
     """Main analyzer class."""
     
     class SentianceAnalyzer:
@@ -587,7 +587,7 @@ def __(mo):
 
 
 @app.cell
-def __(analyze_btn, analyzer, json, json_input, mo, view_selector):
+def __(analyze_btn, analyzer, json, json_input, logger, mo, view_selector):
     import traceback
     import time
     
