@@ -7,10 +7,54 @@
 
 ## Status
 
-- [ ] Review migration guide
-- [ ] Update custom files
-- [ ] Run `trellis update --migrate`
-- [ ] Test workflows
+- [x] Review migration guide
+- [x] Update custom files
+- [x] Run `trellis update --migrate`
+- [x] Test workflows
+
+**Completed**: 2026-08-11 — commits `d6c1b0e`, `ec905fd`
+
+## Outcome
+
+`trellis update` had left 19 files at v0.3.10 as "modified by you", so the
+new files landed but the wiring that activates them did not. Four live
+failures were found and fixed:
+
+| Failure | Fix |
+| --- | --- |
+| `settings.json` ran a `SubagentStop` hook pointing at the deleted `ralph-loop.py` | Adopted the official `settings.json` |
+| `inject-subagent-context.py` matched only pre-rename agent names, injecting 0 bytes into `trellis-*` sub-agents (silent) | Adopted the official hook, which uses `trellis-*` natively |
+| `inject-workflow-state.py` on disk but registered nowhere | Wired as `UserPromptSubmit` |
+| `workflow.md` still the v0.3.10 template — no `[workflow-state:*]` blocks | Replaced via `trellis workflow --template native` |
+
+A fifth issue surfaced during verification: `task.py` wrote the active-task
+pointer to the legacy `.trellis/.current-task`, while the new hook reads only
+`.trellis/.runtime/sessions/`. The two layers were disconnected, so the
+per-turn breadcrumb would have reported `no_task` permanently. The official
+`task.py`/`paths.py` route through `common/active_task.py`; the pointer was
+migrated to the new runtime.
+
+Deprecated leftovers removed: `.claude/commands/trellis/start.md` and
+`.trellis/scripts/common/phase.py` (both orphaned — nothing imported or
+referenced them).
+
+### Verification
+
+| Check | Before | After |
+| --- | --- | --- |
+| Sub-agent context injection | 0 / 0 / 0 bytes | 15618 / 15485 / 5285 |
+| `inject-workflow-state.py` | generic fallback | real task status + routing |
+| Broken hook references | 1 | 0 |
+| Unwired hooks | 1 | 0 |
+| `trellis update --dry-run` | 19 files pending | none |
+
+### Known gap
+
+`.agent/workflows/` (Antigravity) still holds `before-backend-dev.md`,
+`check-backend.md`, `check-frontend.md`, `onboard.md`, `create-command.md`
+and friends, which were removed on the `.claude/` side. `trellis update`
+does not flag them, so this may be intentional for that platform — left
+as-is pending a decision.
 
 ---
 
