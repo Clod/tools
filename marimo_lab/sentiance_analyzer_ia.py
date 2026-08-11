@@ -42,23 +42,23 @@
 ║ CÓMO EJECUTAR ESTE NOTEBOOK:                                                 ║
 ║                                                                              ║
 ║ 1. CON UV (Recomendado):                                                     ║
-║    $ uv run marimo edit sentiance_analyzer.py                                ║
+║    $ uv run marimo edit sentiance_analyzer_ia.py                             ║
 ║    Instala automáticamente las dependencias del bloque /// script.           ║
 ║                                                                              ║
 ║ 2. MODO EDICIÓN (Tradicional):                                               ║
-║    $ marimo edit sentiance_analyzer.py                                       ║
+║    $ marimo edit sentiance_analyzer_ia.py                                    ║
 ║    Abre el IDE completo en el navegador para editar y ver salidas.           ║
 ║                                                                              ║
 ║ 3. MODO EJECUCIÓN (Interfaz limpia):                                         ║
-║    $ marimo run sentiance_analyzer.py                                        ║
+║    $ marimo run sentiance_analyzer_ia.py                                     ║
 ║    Abre la app final - solo widgets y salidas, sin código.                   ║
 ║                                                                              ║
 ║ 4. EXPORTAR A HTML (Snapshot estático):                                      ║
-║    $ marimo export html sentiance_analyzer.py -o app.html                    ║
+║    $ marimo export html sentiance_analyzer_ia.py -o app.html                 ║
 ║    Crea un HTML estático, sin interactividad.                                ║
 ║                                                                              ║
 ║ 5. CONVERTIR A JUPYTER (Migración):                                          ║
-║    $ marimo export ipynb sentiance_analyzer.py -o app.ipynb                  ║
+║    $ marimo export ipynb sentiance_analyzer_ia.py -o app.ipynb               ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -149,8 +149,8 @@ def __(mo):
        o `architect` (desglose de sub-registros).
     3. Apretá **🚀 Analyze JSON**. El análisis no corre solo.
 
-    **Para correr el notebook:** `uv run marimo edit sentiance_analyzer.py`
-    (modo edición) o `marimo run sentiance_analyzer.py` (interfaz limpia).
+    **Para correr el notebook:** `uv run marimo edit sentiance_analyzer_ia.py`
+    (modo edición) o `marimo run sentiance_analyzer_ia.py` (interfaz limpia).
     Requiere `OPENROUTER_API_KEY` en `marimo_lab/.env`.
 
     Ver el docstring al principio del archivo para el detalle completo de

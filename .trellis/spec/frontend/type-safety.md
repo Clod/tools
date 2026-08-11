@@ -84,5 +84,5 @@ def extract_score(event: Dict[str, Any], key: str) -> Optional[float]:
 
 ## Examples
 
-- Type hint usage: `marimo_lab/sentiance_analyzer.py` (LLM caller function)
+- Type hint usage: `marimo_lab/sentiance_analyzer_ia.py` (LLM caller function)
 - Optional pattern: `csv_analizer/primary_scores.py` (engine setup cell)

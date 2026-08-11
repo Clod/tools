@@ -28,7 +28,7 @@ tools/
 ├── marimo_lab/                 # Main interactive Marimo notebooks
 │   ├── .env                    # DB credentials (gitignored, NEVER committed)
 │   ├── sentiance_data_explorer.py   # Main data explorer notebook
-│   ├── sentiance_analyzer.py        # LLM-powered SDK analyzer
+│   ├── sentiance_analyzer_ia.py     # LLM-powered SDK analyzer
 │   ├── build_index.py               # Docs indexer
 │   ├── classify_concepts.py         # Concept classifier
 │   ├── concepts.json                # Concept definitions

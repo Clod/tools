@@ -16,7 +16,7 @@ This project uses **Marimo** as its UI/frontend framework. There is no React, Ty
 tools/
 ├── marimo_lab/                      # Main interactive notebooks (primary UI layer)
 │   ├── sentiance_data_explorer.py   # Main data explorer app
-│   ├── sentiance_analyzer.py        # LLM-powered SDK analyzer app
+│   ├── sentiance_analyzer_ia.py     # LLM-powered SDK analyzer app
 │   ├── build_index.py               # Docs indexer notebook
 │   ├── classify_concepts.py         # Concept classification notebook
 │   └── pyproject.toml               # Dependencies for this module

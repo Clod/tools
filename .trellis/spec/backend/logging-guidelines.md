@@ -70,5 +70,5 @@ mo.md(f"Cargados **{len(df):,}** registros")
 
 ## Examples
 
-- Logger setup: `marimo_lab/sentiance_analyzer.py` (setup cell)
+- Logger setup: `marimo_lab/sentiance_analyzer_ia.py` (setup cell)
 - UI feedback pattern: `csv_analizer/primary_scores.py` (DB connection cell)

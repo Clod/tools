@@ -12,7 +12,7 @@ Un notebook interactivo que permite navegar por los eventos almacenados en SQL S
     *   Visualización de JSON detallado.
     *   Extracción automática de datos geográficos (Venues/Paths) y visualización en mapa interactivo usando `leafmap`.
 
-### 2. Analizador de JSON con IA (`sentiance_analyzer.py`)
+### 2. Analizador de JSON con IA (`sentiance_analyzer_ia.py`)
 Notebook diseñado para pegar un objeto JSON de estado o evento y recibir un análisis detallado basado en la documentación oficial.
 *   **Funcionalidades**:
     *   **Motor Gemini 2.0 Flash**: Migrado a `google/gemini-2.0-flash-001` para máxima velocidad, contexto masivo y cero errores de rate-limit.
@@ -78,7 +78,7 @@ uv run marimo edit app.py
 
 ### Paso 3: Ejecutar el Analizador de IA
 ```bash
-uv run marimo run sentiance_analyzer.py
+uv run marimo run sentiance_analyzer_ia.py
 ```
 
 ## Dependencias Principales
