@@ -1,3 +1,67 @@
+"""
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                ANALIZADOR DE JSON DEL SDK SENTIANCE - MARIMO                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ QUÉ HACE ESTE NOTEBOOK:                                                      ║
+║ - Recibe un JSON del SDK de Sentiance y explica qué significa, apoyándose    ║
+║   en la documentación oficial scrapeada y en un LLM.                         ║
+║ - Pipeline de 4 pasos:                                                       ║
+║     1. Extrae recursivamente las keys y valores del JSON.                    ║
+║     2. Un LLM elige hasta 4 archivos de doc relevantes usando el índice      ║
+║        de keywords (SALIDA.json).                                            ║
+║     3. Lee esos markdown y les quita el ruido de navegación de GitBook       ║
+║        (logos, menús, links) para ahorrar tokens.                            ║
+║     4. Un LLM produce el análisis final citando las URLs de origen.          ║
+║ - Dos perspectivas seleccionables:                                           ║
+║     · programmer → tipo, por qué se generó, significado de cada campo,       ║
+║       calidad del dato y cómo usarlo.                                        ║
+║     · architect  → tipo, por qué se generó y desglose de sub-registros.      ║
+║ - La respuesta se genera en ESPAÑOL y siempre abre listando los links de     ║
+║   la documentación utilizada.                                                ║
+║ - El análisis NO corre solo: hay que apretar el botón 'Analyze JSON'.        ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ ENTRADAS REQUERIDAS:                                                         ║
+║ - marimo_lab/.env con OPENROUTER_API_KEY                                     ║
+║     Obligatorio. Sin esa variable el notebook aborta al iniciar.             ║
+║ - marimo_lab/SALIDA.json                                                     ║
+║     Índice de keywords por archivo. Lo genera build_index.py.                ║
+║ - marimo_lab/concepts.json                                                   ║
+║     Lista de docs conceptuales; se cargan los primeros 10 como contexto      ║
+║     global. Lo genera classify_concepts.py. Si falta, se sigue sin él.       ║
+║ - scraper/scraped_site/                                                      ║
+║     Documentación de Sentiance scrapeada en markdown.                        ║
+║                                                                              ║
+║ OJO: BASE_DIR y DOCS_DIR están hardcodeados como rutas absolutas en la       ║
+║ primera celda. Si movés el repo de lugar, hay que editarlas.                 ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ MODELO:                                                                      ║
+║ - google/gemini-2.0-flash-001 vía OpenRouter, para el ruteo y el análisis.   ║
+║ - Se puede cambiar en la constante MODEL de la celda call_llm.               ║
+║ - temperature=0 para que las respuestas sean reproducibles.                  ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║ CÓMO EJECUTAR ESTE NOTEBOOK:                                                 ║
+║                                                                              ║
+║ 1. CON UV (Recomendado):                                                     ║
+║    $ uv run marimo edit sentiance_analyzer.py                                ║
+║    Instala automáticamente las dependencias del bloque /// script.           ║
+║                                                                              ║
+║ 2. MODO EDICIÓN (Tradicional):                                               ║
+║    $ marimo edit sentiance_analyzer.py                                       ║
+║    Abre el IDE completo en el navegador para editar y ver salidas.           ║
+║                                                                              ║
+║ 3. MODO EJECUCIÓN (Interfaz limpia):                                         ║
+║    $ marimo run sentiance_analyzer.py                                        ║
+║    Abre la app final - solo widgets y salidas, sin código.                   ║
+║                                                                              ║
+║ 4. EXPORTAR A HTML (Snapshot estático):                                      ║
+║    $ marimo export html sentiance_analyzer.py -o app.html                    ║
+║    Crea un HTML estático, sin interactividad.                                ║
+║                                                                              ║
+║ 5. CONVERTIR A JUPYTER (Migración):                                          ║
+║    $ marimo export ipynb sentiance_analyzer.py -o app.ipynb                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
+
 import marimo
 
 # /// script
@@ -64,6 +128,35 @@ def __():
         OPENROUTER_API_KEY,
         OPENROUTER_BASE_URL,
     )
+
+
+@app.cell
+def __(mo):
+    """Rendered intro: what this notebook does and how to run it."""
+
+    mo.md("""
+    Analiza un **JSON del SDK de Sentiance** y explica qué significa, apoyándose
+    en la documentación oficial y en un LLM.
+
+    **Cómo funciona:** extrae las keys del JSON → un LLM elige hasta 4 archivos
+    de documentación relevantes → los limpia de ruido de navegación → un LLM
+    produce el análisis final, en español y citando las URLs que usó.
+
+    **Cómo se usa:**
+
+    1. Pegá el JSON en el cuadro de texto de abajo.
+    2. Elegí la perspectiva: `programmer` (campos, calidad del dato, cómo usarlo)
+       o `architect` (desglose de sub-registros).
+    3. Apretá **🚀 Analyze JSON**. El análisis no corre solo.
+
+    **Para correr el notebook:** `uv run marimo edit sentiance_analyzer.py`
+    (modo edición) o `marimo run sentiance_analyzer.py` (interfaz limpia).
+    Requiere `OPENROUTER_API_KEY` en `marimo_lab/.env`.
+
+    Ver el docstring al principio del archivo para el detalle completo de
+    entradas y modos de ejecución.
+    """)
+    return
 
 
 @app.cell
