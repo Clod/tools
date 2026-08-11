@@ -23,6 +23,7 @@ These guides help you **ask the right questions before coding**.
 |-------|---------|-------------|
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through data flow across layers | Features spanning multiple layers |
+| [Trellis Upgrade Guide](./trellis-upgrade-guide.md) | Upgrade Trellis without ending up half-migrated | Before running `trellis update` / `trellis upgrade` |
 
 ---
 
@@ -46,6 +47,16 @@ These guides help you **ask the right questions before coding**.
 - [ ] **You're creating a new utility/helper function** ← Search first!
 
 → Read [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md)
+
+### When to Think About a Trellis Upgrade
+
+- [ ] About to run `trellis update` or `trellis upgrade`
+- [ ] The CLI prints `Trellis update available: X → Y`
+- [ ] `trellis update --dry-run` lists files under `Modified by you`
+- [ ] Sub-agents seem to act without task context, or the per-turn
+      breadcrumb says `no_task` while `task.py list` shows a current task
+
+→ Read [Trellis Upgrade Guide](./trellis-upgrade-guide.md)
 
 ---
 
