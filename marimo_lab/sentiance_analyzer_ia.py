@@ -35,8 +35,8 @@
 ║ primera celda. Si movés el repo de lugar, hay que editarlas.                 ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ MODELO:                                                                      ║
-║ - google/gemini-2.0-flash-001 vía OpenRouter, para el ruteo y el análisis.   ║
-║ - Se puede cambiar en la constante MODEL de la celda call_llm.               ║
+║ - google/gemini-2.5-flash via OpenRouter, para el ruteo y el analisis.       ║
+║ - Se cambia en la constante MODEL de la celda call_llm (unico lugar).        ║
 ║ - temperature=0 para que las respuestas sean reproducibles.                  ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║ CÓMO EJECUTAR ESTE NOTEBOOK:                                                 ║
@@ -163,13 +163,17 @@ def __(mo):
 def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, logger, requests):
     """LLM API caller."""
 
-    # Model selection - CHANGE THIS TO SAVE MONEY
-    # MODEL = "google/gemini-2.0-flash-exp:free"  # FREE!
-    MODEL = "qwen/qwen-2.5-72b-instruct"      # $0.35/1M (best paid)
-    # MODEL = "mistralai/mistral-small"         # $0.20/1M (cheapest)
-    # MODEL = "meta-llama/llama-3.1-8b-instruct:free"  # FREE
-    MODEL = "google/gemini-2.0-flash-001"
-    
+    # Modelo unico para las dos llamadas (seleccion de docs y analisis final).
+    # Precios por millon de tokens, verificados contra el catalogo de
+    # OpenRouter el 2026-08-11. Los IDs caducan: cuando un modelo se retira,
+    # la API responde 404 y no 401, asi que un 404 aca casi nunca es la clave.
+    # Catalogo vigente: https://openrouter.ai/api/v1/models
+    #
+    # MODEL = "google/gemini-2.5-flash-lite"   # $0.10 entrada / $0.40 salida
+    MODEL = "google/gemini-2.5-flash"          # $0.30 entrada / $2.50 salida
+    # MODEL = "google/gemini-3.5-flash"        # $1.50 entrada / $9.00 salida
+    # MODEL = "qwen/qwen-2.5-72b-instruct"     # alternativa no-Google
+
     def call_llm(prompt: str, model: str = MODEL, max_tokens: int = 2048) -> str:
         """Call OpenRouter API."""
         headers = {
@@ -191,7 +195,22 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, logger, requests):
         try:
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            logger.error(f"LLM API Error: {response.text}")
+            logger.error(f"LLM API Error [{response.status_code}]: {response.text}")
+            # El codigo distingue la causa, que si no es facil de confundir:
+            # 404 es el modelo, no la credencial.
+            causas = {
+                401: "clave invalida o ausente en marimo_lab/.env",
+                402: "credito agotado en la cuenta de OpenRouter",
+                404: (f"el modelo '{model}' no existe o fue retirado; "
+                      "consulta https://openrouter.ai/api/v1/models"),
+                429: "limite de peticiones alcanzado; reintenta en unos segundos",
+            }
+            causa = causas.get(response.status_code)
+            if causa:
+                raise requests.exceptions.HTTPError(
+                    f"OpenRouter {response.status_code}: {causa}",
+                    response=response,
+                ) from e
             raise e
         
         return response.json()["choices"][0]["message"]["content"]
@@ -380,8 +399,9 @@ No explanations, just the JSON array.
             # Debug: Log the prompt
             logger.debug(f"Router Prompt (Length: {len(prompt)} chars). Head:\n{prompt[:500]}...")
             
-            # Use Gemini 2.0 Flash (User Requested)
-            response = call_llm(prompt, model="google/gemini-2.0-flash-001", max_tokens=1024)
+            # Sin `model=`: usa el MODEL por defecto de call_llm, para que el
+            # modelo se cambie en un solo lugar.
+            response = call_llm(prompt, max_tokens=1024)
             
             # Debug: Log raw response
             logger.debug(f"Router Raw Response:\n{response}")
