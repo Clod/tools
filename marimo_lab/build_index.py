@@ -27,9 +27,9 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 # Esta tarea lee documentos enteros y devuelve 10 palabras clave, asi que pesa
 # el precio de entrada y el tamano de contexto, no el de salida.
 #
-MODEL = "qwen/qwen-2.5-72b-instruct"       # $0.36 ent / $0.40 sal - contexto 32K
-# MODEL = "google/gemini-2.5-flash-lite"   # $0.10 ent / $0.40 sal - contexto 1M
+MODEL = "google/gemini-2.5-flash-lite"     # $0.10 ent / $0.40 sal - contexto 1M
 # MODEL = "google/gemini-2.5-flash"        # $0.30 ent / $2.50 sal - contexto 1M
+# MODEL = "qwen/qwen-2.5-72b-instruct"     # $0.36 ent / $0.40 sal - contexto 32K
 
 def call_openrouter(prompt: str, model: str = MODEL) -> str:
     """Call OpenRouter API."""
