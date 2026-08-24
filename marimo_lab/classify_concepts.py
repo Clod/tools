@@ -18,8 +18,14 @@ load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-# Model selection
-MODEL = "google/gemini-2.0-flash-001"
+# Modelo. Precios por millon de tokens, verificados contra el catalogo de
+# OpenRouter el 2026-08-11. Los IDs caducan: cuando un modelo se retira la API
+# responde 404, no 401, asi que un 404 aca casi nunca es la clave.
+# Catalogo vigente: https://openrouter.ai/api/v1/models
+#
+# MODEL = "google/gemini-2.5-flash-lite"   # $0.10 entrada / $0.40 salida
+MODEL = "google/gemini-2.5-flash"          # $0.30 entrada / $2.50 salida
+# MODEL = "qwen/qwen-2.5-72b-instruct"     # alternativa no-Google
 
 def call_openrouter(prompt: str, model: str = MODEL) -> str:
     """Call OpenRouter API."""
@@ -35,8 +41,26 @@ def call_openrouter(prompt: str, model: str = MODEL) -> str:
     }
     
     response = requests.post(OPENROUTER_BASE_URL, headers=headers, json=payload)
-    response.raise_for_status()
-    
+
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as e:
+        # El codigo distingue la causa, que si no es facil de confundir:
+        # 404 es el modelo, no la credencial.
+        causas = {
+            401: "clave invalida o ausente en marimo_lab/.env",
+            402: "credito agotado en la cuenta de OpenRouter",
+            404: (f"el modelo '{model}' no existe o fue retirado; "
+                  "consulta https://openrouter.ai/api/v1/models"),
+            429: "limite de peticiones alcanzado; reintenta en unos segundos",
+        }
+        causa = causas.get(response.status_code)
+        if causa:
+            raise requests.exceptions.HTTPError(
+                f"OpenRouter {response.status_code}: {causa}", response=response
+            ) from e
+        raise
+
     return response.json()["choices"][0]["message"]["content"]
 
 def extract_json_from_response(text: str) -> dict:

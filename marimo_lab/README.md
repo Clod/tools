@@ -23,7 +23,7 @@ Notebook diseñado para pegar un objeto JSON de estado o evento y recibir un an�
 
 ### 3. Clasificador de Conceptos (`classify_concepts.py`)
 Script que utiliza IA para identificar cuáles de los archivos de documentación son explicaciones conceptuales de alto nivel.
-*   **Modelo**: `google/gemini-2.0-flash-001`, que **fue retirado de OpenRouter**. Este script fallará con un 404 hasta que se actualice.
+*   **Modelo**: `google/gemini-2.5-flash`. Se cambia en la constante `MODEL`.
 *   **Prompt Refinado**: Clasifica estrictamente teoría core vs. guías de implementación.
 *   **Propósito**: Crear una base de conocimientos "global" que se incluya en todos los análisis para dar contexto sobre el funcionamiento general del SDK.
 *   **Genera**: `concepts.json`.
