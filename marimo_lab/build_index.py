@@ -31,6 +31,11 @@ MODEL = "google/gemini-2.5-flash-lite"     # $0.10 ent / $0.40 sal - contexto 1M
 # MODEL = "google/gemini-2.5-flash"        # $0.30 ent / $2.50 sal - contexto 1M
 # MODEL = "qwen/qwen-2.5-72b-instruct"     # $0.36 ent / $0.40 sal - contexto 32K
 
+# Caracteres de cada documento que se le muestran al modelo, y cantidad de
+# palabras clave pedidas por documento.
+CONTENT_CHARS = 8000
+KEYWORDS_PER_FILE = 10
+
 def call_openrouter(prompt: str, model: str = MODEL) -> str:
     """Call OpenRouter API."""
     headers = {
@@ -95,29 +100,49 @@ def build_keyword_index(docs_dir: str, output_path: str = "keywords.json"):
         files_content = {}
         for filepath in batch:
             with open(filepath, 'r', encoding='utf-8') as f:
-                # Read first 2000 chars (enough for keyword extraction)
-                content = f.read()[:2000]
+                # Cuanto de cada documento se le muestra al modelo. Estaba en
+                # 2000, pero los 431 documentos scrapeados superan ese tamano
+                # (mediana ~13.000 chars), asi que se descartaba el 85% del
+                # texto y no quedaban 10 terminos tecnicos para extraer.
+                # El limite existia por la ventana de 32K del modelo anterior;
+                # el actual tiene 1M, asi que ya no hace falta.
+                content = f.read()[:CONTENT_CHARS]
                 files_content[filepath.name] = content
         
         # Ask LLM to extract keywords
         prompt = f"""
-Extract the Source URL and TOP 10 KEYWORDS for each documentation file below.
-Each file starts with "Source: <URL>".
+For each documentation file below, extract its Source URL and exactly
+{KEYWORDS_PER_FILE} keywords. Each file starts with "Source: <URL>".
 
-For each file, return an array where:
+Return one array per file:
 1. The FIRST element is the absolute URL found after "Source: ".
-2. The remaining elements are technical keywords (class names, method names, fields, SDK concepts).
+2. The next {KEYWORDS_PER_FILE} elements are technical keywords: class names,
+   method names, field names, event types, enum values, SDK concepts.
 
-Files and their content (first 2000 chars):
+Rules:
+- Produce exactly {KEYWORDS_PER_FILE} keywords per file. Each array therefore
+  holds {KEYWORDS_PER_FILE + 1} elements: the URL plus {KEYWORDS_PER_FILE}
+  keywords.
+- Take every keyword verbatim from that file's own text. Never invent a term,
+  and never carry one over from another file.
+- Prefer specific identifiers over generic prose. "TransportEvent" and
+  "occupantRole" are useful; "the SDK", "data" and "information" are not.
+- Do not repeat a keyword within the same file's array.
+- Only if a file genuinely contains fewer than {KEYWORDS_PER_FILE} distinct
+  technical terms, return the ones it has. Padding with vague words is worse
+  than a short list.
+
+Files and their content (first {CONTENT_CHARS} chars):
 {json.dumps(files_content, indent=2)}
 
-Return ONLY valid JSON (no markdown, no explanations):
+Return ONLY valid JSON, no markdown fences and no explanations. Shape:
 {{
-  "filename1.md": ["https://docs.sentiance.com/...", "keyword1", "keyword2", ...],
-  "filename2.md": ["https://docs.sentiance.com/...", "keyword1", "keyword2", ...]
+  "filename1.md": ["https://docs.sentiance.com/path", "SdkStatus", "startTime",
+                   "TransportEvent", "occupantRole", "onDetectionsEnabled",
+                   "VehicleCrashEvent", "TripProfile", "harshBraking",
+                   "sentianceId", "DetectionStatus"],
+  "filename2.md": ["https://docs.sentiance.com/other", "..."]
 }}
-
-Focus on technical terms, API names, and domain concepts.
 """
         
         print(f"🤖 Processing batch {i//batch_size + 1}/{(len(all_files)-1)//batch_size + 1}...")

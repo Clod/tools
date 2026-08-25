@@ -171,6 +171,11 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, logger, requests):
     #
     # MODEL = "google/gemini-2.5-flash-lite"   # $0.10 entrada / $0.40 salida
     MODEL = "google/gemini-2.5-flash"          # $0.30 entrada / $2.50 salida
+
+    # Tope de caracteres del indice de keywords enviado al selector de docs.
+    # Ver el comentario en _llm_select_files: es una red de seguridad, no un
+    # recorte esperado. Con el indice actual (~187.000 chars) no se activa.
+    MAX_INDEX_CHARS = 400_000
     # MODEL = "google/gemini-3.5-flash"        # $1.50 entrada / $9.00 salida
     # MODEL = "qwen/qwen-2.5-72b-instruct"     # alternativa no-Google
 
@@ -215,7 +220,7 @@ def __(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, logger, requests):
         
         return response.json()["choices"][0]["message"]["content"]
     
-    return call_llm,
+    return MAX_INDEX_CHARS, call_llm
 
 
 @app.cell
@@ -239,7 +244,7 @@ def __(CONCEPTS_FILE, KEYWORDS_INDEX, json):
 
 
 @app.cell
-def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, logger, re):
+def __(DOCS_DIR, MAX_INDEX_CHARS, Path, call_llm, global_concepts, json, keyword_index, logger, re):
     """Main analyzer class."""
     
     class SentianceAnalyzer:
@@ -377,23 +382,43 @@ def __(DOCS_DIR, Path, call_llm, global_concepts, json, keyword_index, logger, r
         def _llm_select_files(self, json_obj: dict, json_keywords: list) -> list:
             """LLM picks best files using keyword index."""
             
-            # Truncate keyword index if too large
+            # Tope del indice que se le muestra al modelo. Estaba en 10.000
+            # caracteres, que con el indice actual (~187.000) dejaba visibles
+            # solo 23 de 431 archivos: el selector no podia elegir el 95% de la
+            # documentacion por mas que sus keywords coincidieran.
+            #
+            # El limite venia de modelos con ventana chica. El actual tiene 1M
+            # de contexto y el indice entero son ~47.000 tokens, asi que entra
+            # holgado. Se conserva un tope alto como red de seguridad por si el
+            # indice crece de forma inesperada.
             index_str = json.dumps(self.keyword_index, indent=2)
-            if len(index_str) > 10000:
-                index_str = index_str[:10000] + "\n... (truncated)"
+            if len(index_str) > MAX_INDEX_CHARS:
+                index_str = index_str[:MAX_INDEX_CHARS] + "\n... (truncated)"
+                logger.warning(
+                    f"Indice truncado: {len(index_str)} de "
+                    f"{len(json.dumps(self.keyword_index, indent=2))} chars"
+                )
             
             prompt = f"""
-Analyze this Sentiance SDK JSON:
+You are selecting which documentation files explain a Sentiance SDK JSON
+payload. Pick the 4 most relevant files, most relevant first.
+
+The JSON to explain:
 {json.dumps(json_obj, indent=2)}
 
-JSON keywords extracted: {json_keywords}
+Keywords extracted from that JSON: {json_keywords}
 
-Available documentation files with their keywords (the FIRST element of each list is the Source URL):
+The documentation index below maps each FILENAME to an array. The first
+element of the array is that file's source URL; the rest are its keywords.
 {index_str}
 
-["filename1.md", "filename2.md", "filename3.md"]
+Return ONLY a JSON array of the selected FILENAMES — the keys of the index
+above, which end in ".md". Do NOT return the URLs, and do not return any
+name that is not a key of the index. No markdown fences, no explanations.
 
-No explanations, just the JSON array.
+Example of the exact shape expected:
+["_important-topics_sdk_api-reference_android_eventtimeline_event_transportevent.md",
+ "_sentiance-insights_driving-insights_safety-scores.md"]
 """
             
             # Debug: Log the prompt
