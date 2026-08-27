@@ -104,7 +104,7 @@ def _(mo):
     # Soporta markdown completo: encabezados, negrita, cursiva, bloques de código, etc.
     # ¡También soporta emojis directamente en el texto! 🎉
     mo.md("""
-    # ¡Bienvenido a Sentiance Data Explorer! 🌊
+    # Sentiance Data Explorer 🌊
     """)
     return
 
