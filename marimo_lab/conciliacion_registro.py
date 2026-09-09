@@ -653,7 +653,13 @@ def _(desde, engine, hasta, mo, pd, sid):
                 + [f"- {_n} — {_c}" for _c, _n in _cuenta.items()]
             )
         ).callout(kind="danger" if _perdidas else "warn")
-        _detalle = mo.ui.table(sueltas, selection=None)
+        # Igual que en la tabla de la flota, el nombre interno se conserva
+        # —`momento` es el que usan el ordenamiento y la clasificación— y solo
+        # se cambia la etiqueta. "momento" solo no dice momento de qué.
+        _detalle = mo.ui.table(
+            sueltas.rename(columns={"momento": "hora del evento"}),
+            selection=None,
+        )
     else:
         _resumen = mo.md(
             "**Todo apareado: cada entrega declarada tiene su fila y cada fila su declaración.**"
@@ -680,7 +686,12 @@ def _(desde, engine, hasta, mo, pd, sid):
                 aparea una sola vez.
 
                 Los eventos que quedan sin pareja son la diferencia. La columna
-                `falta` dice cuál de las dos mitades es la que no apareció, y
+                `hora del evento` es la marca de tiempo de la mitad que sí
+                apareció: el campo `entry.ts` de la línea del registro cuando
+                la que falta es la fila, y la columna `fechahora` de la fila
+                cuando la que falta es la línea.
+
+                La columna `falta` dice cuál de las dos mitades es la que no apareció, y
                 toma uno de dos valores: `la fila en la base` cuando el
                 registro declaró la entrega y no hay fila en `SentianceEventos`,
                 o `la línea TX_OK del registro` cuando la fila existe y ningún
