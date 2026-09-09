@@ -122,15 +122,34 @@ def _(mo):
         Cada línea tiene una `fase` que dice en qué momento del recorrido está
         el evento:
 
-        | Fase | Significa |
-        |---|---|
-        | `RX` | La fachada recibió el evento del SDK de Sentiance. |
-        | `RX_APP` | La app anotó esa misma recepción por su cuenta. |
-        | `TX_IN` | El cliente de eventos tomó el evento para enviarlo. |
-        | `TX_OK` | El backend confirmó que lo recibió. |
-        | `TX_FAIL` | El envío falló y el evento quedó en la cola. |
-        | `TX_DROP` | El evento se descartó sin entregarse. |
-        | `FLUSH_START` / `FLUSH_END` | Ciclo de vaciado de la cola. |
+        | Fase | Quién escribe la línea | Significa |
+        |---|---|---|
+        | `RX` | la fachada | La fachada recibió el evento del SDK de Sentiance. |
+        | `RX_APP` | la app | La app recibió de la fachada **ese mismo evento**. |
+        | `TX_IN` | el cliente de eventos | El cliente de eventos tomó el evento para enviarlo. |
+        | `TX_OK` | el cliente de eventos | El backend confirmó que lo recibió. |
+        | `TX_FAIL` | el cliente de eventos | El envío falló y el evento quedó en la cola. |
+        | `TX_DROP` | el cliente de eventos | El evento se descartó sin entregarse. |
+        | `FLUSH_START` / `FLUSH_END` | el cliente de eventos | Ciclo de vaciado de la cola. |
+
+        ### Por qué un evento recibido escribe dos líneas
+
+        `RX` y `RX_APP` describen la misma recepción anotada dos veces, y las
+        dos líneas existen a propósito.
+
+        Un evento del SDK de Sentiance llega primero a la fachada
+        `@victa/telematics-facade`, que escribe `RX`. La fachada se lo pasa
+        entonces al manejador que la app registró, y ese manejador escribe
+        `RX_APP` antes de mandar el evento. El primer emisor es la librería, el
+        segundo es `src/services/telematics.ts` de la app.
+
+        La consecuencia práctica: **contar `RX` y `RX_APP` juntas da el doble de
+        eventos recibidos que los eventos recibidos reales.** Hay que contar una
+        sola de las dos.
+
+        Hasta el 2026-09-05 las dos líneas usaban la fase `RX`, y para
+        distinguirlas había que mirar si la línea traía o no el campo `ts`. Los
+        registros anteriores a esa fecha siguen necesitando ese criterio.
 
         La conciliación se apoya en `TX_OK`: es la declaración de entrega, y a
         cada una debería corresponderle una fila guardada.
