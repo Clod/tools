@@ -768,7 +768,7 @@ def _(desde, engine, hasta, mo, pd, sid):
 @app.cell(hide_code=True)
 def _(engine, mo, pd, sid):
     # =========================================================================
-    # RECEPCIÓN CONTRA ENTREGA, DENTRO DEL PROPIO REGISTRO
+    # RECEPCIÓN CONTRA ENTREGA, DENTRO DEL REGISTRO DEL DISPOSITIVO ELEGIDO
     # =========================================================================
     # La comparación anterior mira hacia afuera: lo declarado contra la base.
     # Esta mira hacia adentro del registro, y detecta un hueco que la otra no
@@ -811,11 +811,39 @@ def _(engine, mo, pd, sid):
 
     mo.vstack(
         [
-            mo.md("### Recepción contra entrega, dentro del registro"),
+            mo.md(f"### Recepción contra entrega en el registro de `{sid}`"),
             mo.md(
-                "Las entradas con fase `RX` que **escribe la librería** son las "
-                "recepciones reales. Las que escribe la app son una anotación "
-                "propia sobre el mismo evento, y no cuentan como uno más."
+                """
+                La comparación anterior mira hacia afuera: lo que el teléfono
+                declaró entregado contra lo que quedó en la base. Esta mira
+                hacia adentro del registro de diagnóstico del dispositivo
+                seleccionado, y busca un hueco que la otra no puede ver: **un
+                evento que el SDK le entregó a la app y que la app nunca
+                mandó**. En ese caso no hay línea `TX_OK` que contar ni fila
+                que buscar, así que la comparación anterior da cero de los dos
+                lados y el hueco no aparece por ningún lado.
+
+                La tabla cuenta líneas del registro, agrupadas por fase, por
+                tipo de evento y por quién escribió la línea. Se lee
+                comparando, para un mismo evento, las recepciones contra las
+                entregas: `RX` escrita por la librería es una recepción real, y
+                `TX_OK` es la entrega confirmada. Una recepción sin su entrega
+                es el hueco que esta tabla busca.
+
+                Tres advertencias para leerla:
+
+                - Las líneas `RX_APP` no son recepciones adicionales. Son la
+                  anotación que hace la app sobre el mismo evento que ya trae
+                  la línea `RX`, así que sumarlas cuenta cada recepción dos
+                  veces.
+                - El nombre del tipo cambia entre las dos mitades. La fachada
+                  escribe `crash` y `timelineUpdate`; el cliente de eventos
+                  escribe el tipo que manda al backend, `VehicleCrash` y
+                  `TimelineUpdate`. Hay que aparearlos a ojo.
+                - Esta tabla **no** usa el rango **Desde – Hasta**. Cuenta todo
+                  el registro recibido de este dispositivo, sin importar la
+                  fecha.
+                """
             ),
             mo.ui.table(fases, selection=None),
         ]
