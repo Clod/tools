@@ -406,12 +406,17 @@ def _(detalle, mo):
         mo.md("No hay datos en ese rango.").callout(kind="warn"),
     )
 
-    _con_problema = int((resumen["diferencia"] != 0).sum())
-    _mensaje = (
-        mo.md(f"**{_con_problema} de {len(resumen)} dispositivos no cuadran.**").callout(kind="danger")
-        if _con_problema
-        else mo.md(f"**Los {len(resumen)} dispositivos cuadran.**").callout(kind="success")
-    )
+    # Acá había un recuadro que contaba cuántos dispositivos no cuadraban.
+    # Se sacó porque contaba siempre lo mismo: casi ningún dispositivo cuadra,
+    # y no porque haya pérdidas. Una diferencia distinta de cero es el estado
+    # normal, ya que basta con que un archivo del registro siga abierto en el
+    # teléfono para que falten líneas, o con que un evento haya quedado
+    # atribuido a otro usuario para que sobre de un lado y falte del otro.
+    #
+    # Un recuento que sí valdría la pena es el de pérdidas ciertas: entregas
+    # declaradas con TX_OK sin fila bajo ningún sentianceid. Ese dato no se
+    # puede sacar de esta tabla, porque exige el apareo evento por evento que
+    # hace la celda "Diferencias, una por una" para un solo dispositivo.
 
     # El nombre interno de la columna sigue siendo `declaradas`, porque es el
     # que usan el cruce y el cálculo de la diferencia. Solo se cambia la
@@ -426,7 +431,7 @@ def _(detalle, mo):
         selection="single",
         label="Dispositivos",
     )
-    mo.vstack([_mensaje, tabla_flota])
+    tabla_flota
     return (tabla_flota,)
 
 
