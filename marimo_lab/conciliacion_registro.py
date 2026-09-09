@@ -502,19 +502,30 @@ def _(desde, engine, hasta, mo, pd, sid):
     #    entregó con el otro. Aparece como faltante en un dispositivo y como
     #    sobrante en el otro, así que suma dos diferencias por cada evento.
     #
-    # 2. SIN PAR EN NINGUNA PARTE, CERCA DEL FINAL DEL PERÍODO. El registro que
-    #    contiene esa línea, o la fila, todavía puede estar en camino. El envío
-    #    del registro de auditoría no es inmediato: un archivo se cierra al
-    #    llegar a su tamaño de corte y recién se envía cuando pasaron diez
-    #    minutos sin escrituras. Ampliar el período hacia adelante resuelve
-    #    estas diferencias; volver a correr la conciliación más tarde también.
+    # 2. PUEDE ESTAR EN CAMINO TODAVÍA. El par no aparece, y el evento ocurrió
+    #    dentro de los últimos 15 minutos. El envío del registro de auditoría
+    #    no es inmediato: un archivo se cierra al llegar a su tamaño de corte,
+    #    espera diez minutos sin escrituras, y recién entonces entra en un
+    #    ciclo que manda hasta cinco archivos cada cinco minutos y solo con red
+    #    disponible. Volver a conciliar más tarde resuelve estas diferencias.
     #
-    # 3. SIN PAR EN NINGUNA PARTE, EN EL MEDIO DEL PERÍODO. Estas son las que
-    #    hay que mirar. El dispositivo 6aa018266101ed3419e633eb declaró 17
-    #    entregas confirmadas —un SDKReset y dieciséis VehicleCrash entre las
-    #    13:30 y las 14:14 del 2026-09-08— y ninguna de las 17 tiene fila bajo
-    #    ningún sentianceid. Una entrega declarada con fase TX_OK significa que
-    #    el backend confirmó la recepción, así que la fila debería existir.
+    # 3. EL PAR NO APARECE BAJO NINGÚN USUARIO. La otra mitad no está en ningún
+    #    dispositivo del período, así que ya quedó descartada la atribución
+    #    cruzada de la causa 1. Qué significa depende de cuál mitad falta:
+    #
+    #    - Falta la línea TX_OK del registro. El evento llegó, lo que no llegó
+    #      es el archivo que lo declara. La causa 2 solo cubre 15 minutos, pero
+    #      un archivo puede tardar mucho más, así que todavía no es una
+    #      pérdida: se espera, o se toca "Enviar Audit Log ahora" en la
+    #      pantalla de perfil, que cierra el archivo en curso y lo manda sin
+    #      esperar los diez minutos de quietud.
+    #
+    #    - Falta la fila en la base. Acá no hay nada que esperar. TX_OK
+    #      significa que el backend confirmó la recepción, así que la fila
+    #      debería existir. El dispositivo 6aa018266101ed3419e633eb declaró 17
+    #      entregas confirmadas —un SDKReset y dieciséis VehicleCrash entre las
+    #      13:30 y las 14:14 del 2026-09-08— y ninguna de las 17 tiene fila
+    #      bajo ningún sentianceid. Eso es una pérdida.
 
     _desde = desde.value.strftime("%Y-%m-%d %H:%M:%S")
     _hasta = hasta.value.strftime("%Y-%m-%d %H:%M:%S")
@@ -609,14 +620,23 @@ def _(desde, engine, hasta, mo, pd, sid):
                 return "el par quedó bajo otro usuario"
             if fila["momento"] >= _corte:
                 return "puede estar en camino todavía"
-            return "sin par en ninguna parte"
+            return "el par no aparece bajo ningún usuario"
 
         sueltas["causa"] = sueltas.apply(_causa, axis=1)
         sueltas = sueltas.sort_values("momento").reset_index(drop=True)
         sueltas = sueltas[["momento", "tipo", "falta", "causa", "otro_usuario"]]
 
+        # El recuadro se pinta en rojo solo por las pérdidas ciertas, que son
+        # los eventos con entrega declarada y sin fila. Un evento al que le
+        # falta la línea del registro no es una pérdida: el archivo puede
+        # seguir en el teléfono, y forzar el envío lo trae.
         _cuenta = sueltas["causa"].value_counts()
-        _perdidas = int(_cuenta.get("sin par en ninguna parte", 0))
+        _perdidas = int(
+            (
+                (sueltas["causa"] == "el par no aparece bajo ningún usuario")
+                & (sueltas["falta"] == "la fila en la base")
+            ).sum()
+        )
         _resumen = mo.md(
             "\n".join(
                 [f"**{len(sueltas)} evento(s) sin pareja:**", ""]
@@ -664,7 +684,34 @@ def _(desde, engine, hasta, mo, pd, sid):
                 |---|---|---|
                 | **el par quedó bajo otro usuario** | El evento existe de los dos lados, pero el registro lo declara bajo un `sentianceid` y la base lo guardó bajo otro. La columna `otro_usuario` trae el identificador del otro lado. | Es atribución cruzada al cambiar de usuario. Suma dos diferencias por evento: falta en un dispositivo y sobra en el otro. |
                 | **puede estar en camino todavía** | El evento no tiene pareja, y ocurrió dentro de los últimos 15 minutos del período o de este momento, lo que sea más temprano. | Nada. El archivo del registro espera diez minutos de quietud antes de enviarse. Volver a conciliar más tarde. |
-                | **sin par en ninguna parte** | El registro declara la entrega con fase `TX_OK`, o sea confirmada por el backend, y no hay fila bajo ningún `sentianceid`. | Investigar. Es la única de las tres que indica una pérdida. |
+                | **el par no aparece bajo ningún usuario** | La otra mitad no está: ni bajo este `sentianceid` ni bajo ningún otro del período. La búsqueda ya recorrió todos los dispositivos, así que no es atribución cruzada. | Depende de qué falta. Ver abajo. |
+
+                ### Qué hacer cuando el par no aparece bajo ningún usuario
+
+                Lo que corresponde hacer depende de cuál de las dos mitades es
+                la que falta, y las dos situaciones no se parecen en nada.
+
+                **Falta `la línea TX_OK del registro`.** La fila está en la
+                base, así que el evento llegó. Lo que no llegó es el archivo
+                del registro que lo declara, y ese archivo puede seguir en el
+                teléfono. La causa `puede estar en camino todavía` solo cubre
+                los últimos 15 minutos, pero un archivo puede tardar mucho más:
+                se cierra al llegar a su tamaño de corte, espera diez minutos
+                sin escrituras, y recién entonces entra en un ciclo de envío
+                que manda hasta cinco archivos cada cinco minutos y solo con
+                red disponible. Antes de dar nada por perdido hay dos caminos:
+
+                - Esperar y volver a conciliar más tarde.
+                - Pedirle a la persona que abra la pantalla de perfil y toque
+                  **Enviar Audit Log ahora**. Ese botón cierra el archivo que
+                  se está escribiendo y lo manda enseguida, sin esperar los
+                  diez minutos de quietud.
+
+                **Falta `la fila en la base`.** Acá no hay nada que esperar. La
+                línea `TX_OK` significa que el backend confirmó la recepción
+                del evento, así que la fila debería existir y no existe. Esta
+                es la única situación de las que muestra la tabla que indica
+                una pérdida, y hay que investigarla.
                 """
             ),
             _resumen,
