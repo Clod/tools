@@ -634,13 +634,33 @@ def _(desde, engine, hasta, mo, pd, sid):
         [
             mo.md("### Diferencias, una por una"),
             mo.md(
-                "La columna `causa` separa las diferencias que hay que "
-                "investigar de las que se explican solas. **el par quedó bajo "
-                "otro usuario** indica atribución cruzada y trae el "
-                "sentianceid del otro lado. **puede estar en camino todavía** "
-                "cae dentro de los últimos 15 minutos del período. **sin par "
-                "en ninguna parte** es una entrega declarada como confirmada "
-                "cuya fila no existe bajo ningún usuario."
+                """
+                La tabla anterior da la diferencia como un número por tipo de
+                evento. Acá esa diferencia se abre: **un renglón por cada
+                evento que la produjo**.
+
+                Abrirla exige aparear las dos mitades. Entre una línea del
+                registro y una fila de la base no hay ninguna clave en común,
+                así que el apareo es por tipo de evento y cercanía en el
+                tiempo, con una tolerancia de 5 segundos. La tolerancia es
+                necesaria porque la columna `fechahora` de la base guarda
+                segundos enteros y el campo `entry.ts` del registro guarda
+                milésimas, de modo que las dos marcas de tiempo de un mismo
+                evento nunca coinciden exactamente. Cada fila de la base se
+                aparea una sola vez.
+
+                Los eventos que quedan sin pareja son la diferencia. La columna
+                `falta` dice cuál de las dos mitades es la que no apareció. La
+                columna `causa` dice por qué, y es la que separa las
+                diferencias que hay que investigar de las que se explican
+                solas:
+
+                | Causa | Qué significa | Qué hacer |
+                |---|---|---|
+                | **el par quedó bajo otro usuario** | El evento existe de los dos lados, pero el registro lo declara bajo un `sentianceid` y la base lo guardó bajo otro. La columna `otro_usuario` trae el identificador del otro lado. | Es atribución cruzada al cambiar de usuario. Suma dos diferencias por evento: falta en un dispositivo y sobra en el otro. |
+                | **puede estar en camino todavía** | El evento no tiene pareja, y ocurrió dentro de los últimos 15 minutos del período o de este momento, lo que sea más temprano. | Nada. El archivo del registro espera diez minutos de quietud antes de enviarse. Volver a conciliar más tarde. |
+                | **sin par en ninguna parte** | El registro declara la entrega con fase `TX_OK`, o sea confirmada por el backend, y no hay fila bajo ningún `sentianceid`. | Investigar. Es la única de las tres que indica una pérdida. |
+                """
             ),
             _resumen,
             _detalle,
