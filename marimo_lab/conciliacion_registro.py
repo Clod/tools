@@ -582,7 +582,7 @@ def _(desde, engine, hasta, mo, pd, sid):
             _sueltas.append({
                 "tipo": _tipo,
                 "momento": _m,
-                "falta": "la fila guardada",
+                "falta": "la fila en la base",
                 "otro_usuario": _par.iloc[0]["sid"] if len(_par) else None,
             })
         _otras_decl = _declaraciones[(_declaraciones["tipo"] == _tipo) & (_declaraciones["sid"] != sid)]
@@ -591,7 +591,7 @@ def _(desde, engine, hasta, mo, pd, sid):
             _sueltas.append({
                 "tipo": _tipo,
                 "momento": _m,
-                "falta": "la entrega declarada",
+                "falta": "la línea TX_OK del registro",
                 "otro_usuario": _par.iloc[0]["sid"] if len(_par) else None,
             })
 
@@ -650,8 +650,13 @@ def _(desde, engine, hasta, mo, pd, sid):
                 aparea una sola vez.
 
                 Los eventos que quedan sin pareja son la diferencia. La columna
-                `falta` dice cuál de las dos mitades es la que no apareció. La
-                columna `causa` dice por qué, y es la que separa las
+                `falta` dice cuál de las dos mitades es la que no apareció, y
+                toma uno de dos valores: `la fila en la base` cuando el
+                registro declaró la entrega y no hay fila en `SentianceEventos`,
+                o `la línea TX_OK del registro` cuando la fila existe y ningún
+                lote recibido trae la línea que la declara.
+
+                La columna `causa` dice por qué, y es la que separa las
                 diferencias que hay que investigar de las que se explican
                 solas:
 
