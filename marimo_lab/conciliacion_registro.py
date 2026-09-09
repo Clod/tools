@@ -530,9 +530,17 @@ def _(desde, engine, hasta, mo, pd, sid):
     _desde = desde.value.strftime("%Y-%m-%d %H:%M:%S")
     _hasta = hasta.value.strftime("%Y-%m-%d %H:%M:%S")
     _TOLERANCIA = pd.Timedelta(seconds=5)
-    # Cuánto antes del fin del período se considera que algo puede estar en
-    # camino todavía. Diez minutos es el tiempo de quietud que espera el envío
-    # del registro; se toman quince para dejar margen.
+    # Hace cuánto tiene que haber ocurrido un evento para que su ausencia
+    # todavía no signifique nada. Diez minutos es el tiempo de quietud que
+    # espera el envío del registro; se toman quince para dejar margen.
+    #
+    # Es un piso muy bajo, no un plazo. Un archivo se cierra al llegar a
+    # 512 KB, al morir el motor de JavaScript, o al tocar "Enviar Audit Log
+    # ahora"; en un teléfono con poca actividad puede quedar abierto durante
+    # horas, y hasta que no se cierra no se manda. O sea que pasados los quince
+    # minutos la ausencia de una línea del registro sigue sin significar
+    # pérdida. Por eso la causa que sigue en la clasificación no afirma que
+    # haya una pérdida, sino que separa por cuál mitad falta.
     _EN_VUELO = pd.Timedelta(minutes=15)
 
     # Las dos consultas traen TODOS los dispositivos, no solo el seleccionado.
@@ -609,11 +617,13 @@ def _(desde, engine, hasta, mo, pd, sid):
     sueltas = pd.DataFrame(_sueltas)
 
     if len(sueltas):
-        # El corte se mide contra el momento actual, no contra el fin del
-        # período. El fin por omisión son las 23:59 de hoy, un momento que
-        # todavía no llegó: medir contra ese valor haría que nada se
-        # clasificara nunca como en camino.
-        _corte = min(pd.to_datetime(_hasta), pd.Timestamp.now()) - _EN_VUELO
+        # El corte se mide SIEMPRE contra el presente, y nunca contra el fin
+        # del rango elegido. Lo que decide si algo puede seguir en camino es
+        # cuánto tiempo pasó desde que ocurrió el evento hasta ahora, y eso no
+        # depende de qué rango se haya pedido. Con un rango que termina ayer,
+        # ningún evento califica: los archivos del registro tuvieron toda la
+        # noche para llegar, así que su ausencia ya es un dato y no una espera.
+        _corte = pd.Timestamp.now() - _EN_VUELO
 
         def _causa(fila):
             if fila["otro_usuario"]:
@@ -683,8 +693,26 @@ def _(desde, engine, hasta, mo, pd, sid):
                 | Causa | Qué significa | Qué hacer |
                 |---|---|---|
                 | **el par quedó bajo otro usuario** | El evento existe de los dos lados, pero el registro lo declara bajo un `sentianceid` y la base lo guardó bajo otro. La columna `otro_usuario` trae el identificador del otro lado. | Es atribución cruzada al cambiar de usuario. Suma dos diferencias por evento: falta en un dispositivo y sobra en el otro. |
-                | **puede estar en camino todavía** | El evento no tiene pareja, y ocurrió dentro de los últimos 15 minutos del período o de este momento, lo que sea más temprano. | Nada. El archivo del registro espera diez minutos de quietud antes de enviarse. Volver a conciliar más tarde. |
-                | **el par no aparece bajo ningún usuario** | La otra mitad no está: ni bajo este `sentianceid` ni bajo ningún otro del período. La búsqueda ya recorrió todos los dispositivos, así que no es atribución cruzada. | Depende de qué falta. Ver abajo. |
+                | **puede estar en camino todavía** | El evento ocurrió hace menos de 15 minutos, contados desde este momento. Demasiado reciente para mirarlo. | Esperar y volver a conciliar más tarde. Si hace falta la respuesta ya, pedirle a la persona que toque **Enviar Audit Log ahora** en la pantalla de perfil, y conciliar de nuevo: eso cierra el archivo en curso y lo manda enseguida. |
+                | **el par no aparece bajo ningún usuario** | La otra mitad no está: ni bajo este `sentianceid` ni bajo ningún otro dispositivo dentro del rango **Desde – Hasta**. La búsqueda ya recorrió todos los dispositivos, así que no es atribución cruzada. | Depende de qué falta. Ver abajo. |
+
+                Los 15 minutos no son un plazo que al vencerse convierta la
+                ausencia en pérdida. Un archivo del registro se cierra solo al
+                llegar a 512 KB, o cuando muere el motor de JavaScript de la
+                app, o cuando alguien toca **Enviar Audit Log ahora**. En un
+                teléfono con poca actividad ese archivo puede quedar abierto
+                durante horas, y hasta que no se cierra no se manda. Por eso un
+                evento de ayer sin su línea del registro tampoco está perdido:
+                cae en la causa siguiente, que separa según cuál mitad falta y
+                tampoco afirma que haya pérdida.
+
+                En los dos casos, el de hace quince minutos y el de ayer, hay
+                una salida más rápida que esperar: pedirle a la persona que
+                toque **Enviar Audit Log ahora** en la pantalla de perfil, y
+                volver a conciliar. Ese botón cierra el archivo en curso y lo
+                manda enseguida, así que una diferencia que era solo un archivo
+                sin cerrar desaparece en la conciliación siguiente. La que no
+                desaparece después de forzar el envío es la que hay que mirar.
 
                 ### Qué hacer cuando el par no aparece bajo ningún usuario
 
