@@ -413,7 +413,19 @@ def _(detalle, mo):
         else mo.md(f"**Los {len(resumen)} dispositivos cuadran.**").callout(kind="success")
     )
 
-    tabla_flota = mo.ui.table(resumen, selection="single", label="Dispositivos")
+    # El nombre interno de la columna sigue siendo `declaradas`, porque es el
+    # que usan el cruce y el cálculo de la diferencia. Solo se cambia la
+    # etiqueta que ve quien lee la tabla: "declaradas" sola no dice de dónde
+    # sale el número, y sale del registro que mandó el teléfono.
+    #
+    # El renombre va acá y no en la consulta a propósito. `tabla_flota.value`
+    # devuelve las filas seleccionadas con estos nombres, y la celda de aguas
+    # abajo solo lee de ahí la columna `sentianceid`, que no cambia.
+    tabla_flota = mo.ui.table(
+        resumen.rename(columns={"declaradas": "declaradas en logs"}),
+        selection="single",
+        label="Dispositivos",
+    )
     mo.vstack([_mensaje, tabla_flota])
     return (tabla_flota,)
 
@@ -447,7 +459,10 @@ def _(detalle, mo, tabla_flota):
     mo.vstack(
         [
             mo.md(f"### Entregas declaradas contra filas guardadas — `{sid}`"),
-            mo.ui.table(_por_tipo, selection=None),
+            mo.ui.table(
+                _por_tipo.rename(columns={"declaradas": "declaradas en logs"}),
+                selection=None,
+            ),
         ]
     )
     return (sid,)
