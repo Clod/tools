@@ -465,104 +465,206 @@ def _(detalle, mo, tabla_flota):
     return (sid,)
 
 
+@app.cell
+def _():
+    return
+
+
 @app.cell(hide_code=True)
 def _(desde, engine, hasta, mo, pd, sid):
     # =========================================================================
-    # LAS DOS LISTAS COMPLETAS, UNA AL LADO DE LA OTRA
+    # EVENTO POR EVENTO, CON LAS CUATRO MARCAS DE TIEMPO
     # =========================================================================
     # La tabla anterior da números por tipo de evento. Esta muestra los eventos
-    # uno por uno, con las dos fuentes en columnas contiguas: la hora que anotó
-    # el log del teléfono y la hora que quedó en la fila de la base.
+    # uno por uno, con las cuatro marcas que existen de cada uno, agrupadas en
+    # los dos pares que miden LO MISMO:
     #
-    # POR QUÉ LAS DOS LISTAS COMPLETAS Y NO SOLO LAS DIFERENCIAS
-    # ----------------------------------------------------------
-    # Mostrando solo lo que no cuadra se pierden los denominadores, y sobre todo
-    # se pierde la FORMA de los huecos. Con las dos listas enteras se ve que los
-    # eventos sin log no están salpicados sino agrupados en bloques contiguos
-    # —tramos cuyo archivo de log no llegó— y que los renglones sueltos caen en
-    # los BORDES de cada ráfaga de actividad, que es donde el apareo por tiempo
-    # se queda sin pareja dentro de la tolerancia.
+    #     RX  ↔ fechahora     cuándo OCURRIÓ el evento
+    #     TX  ↔ created_at    cuándo LLEGÓ al backend
     #
-    # EL APAREO
-    # ---------
-    # Mismo criterio que la celda siguiente: por tipo de evento y cercanía en el
-    # tiempo, con 5 segundos de tolerancia, y cada fila de la base se consume una
-    # sola vez. La tolerancia es necesaria porque el log guarda milésimas y la
-    # columna `fechahora` de la base trunca a segundos.
+    # POR QUÉ ESTAS PAREJAS Y NO OTRAS
+    # --------------------------------
+    # Las cuatro marcas no miden lo mismo, y cruzarlas mal inventa demoras que
+    # no existen:
     #
-    # Medido el 2026-09-14 sobre 6aa061750c376556e45ffee4: el desfasaje entre las
-    # dos marcas va de -3,4 a +4,0 segundos, con mediana -1,0. O sea que el
-    # apareo trabaja cerca del límite de su tolerancia, y por eso los bordes de
-    # cada ráfaga quedan sin pareja aunque el evento esté en las dos fuentes.
+    #   - `RX` la escribe la fachada cuando el SDK le entrega el evento.
+    #   - `fechahora` la pone el cliente al armar el envío, en el mismo momento.
+    #   - `TX_OK` se escribe cuando el backend confirma.
+    #   - `created_at` es cuándo el backend insertó la fila: el mismo instante.
+    #
+    # Medido el 2026-09-14, dispositivo 6a708f236794d87aa1a951be, once eventos de
+    # las 15:06 del 13 de septiembre: `RX` y `fechahora` caen siempre en el mismo
+    # segundo, y `TX` y `created_at` también. Entre las dos parejas hubo 47
+    # minutos, que es el tiempo que los eventos pasaron en la cola esperando red.
+    #
+    # Comparar `TX_OK` contra `fechahora` —que es lo que hace la celda siguiente—
+    # mezcla las dos cosas y mide la cola, no la conciliación. Esa demora no
+    # tiene techo: medida sobre 2215 envíos va de 0,8 segundos de mediana a 8,9
+    # horas de máximo, así que ninguna tolerancia fija la contiene.
+    #
+    # LOS HUECOS QUE NO SON FALLAS
+    # ----------------------------
+    # Dos casos conocidos, para no leerlos como pérdidas:
+    #
+    #   - `requestUserContext` nunca tiene `RX`. No es un evento que el SDK
+    #     empuje: es una consulta que hace la app (`telematics.ts:388`), así que
+    #     no hay recepción que anotar, solo la entrega del resultado.
+    #   - Los cuatro `DrivingInsights*Events` anotan su recepción con fase
+    #     `RX_QUERY` y con otra grafía —`phoneUsageEvents` contra
+    #     `DrivingInsightsPhoneEvents`—. La tabla `_NORM` traduce esos nombres;
+    #     sin eso aparecerían como recepciones y entregas huérfanas.
     _desde_p = desde.value.strftime("%Y-%m-%d %H:%M:%S")
     _hasta_p = hasta.value.strftime("%Y-%m-%d %H:%M:%S")
-    _TOL_P = pd.Timedelta(seconds=5)
 
-    _log = pd.read_sql(f"""
-        SELECT JSON_VALUE(l.value,'$.entry.tipo') AS tipo,
-               JSON_VALUE(l.value,'$.entry.ts')   AS momento
+    # Margen para aparear una marca del log con la de la base. No absorbe demoras
+    # —cada pareja mide el mismo instante— solo el truncado de `fechahora` y
+    # `created_at` a segundos enteros, que son 0 de 16.040 filas con milésimas.
+    _TOL_M = pd.Timedelta(seconds=3)
+
+    # La grafía del tipo cambia según la fase; se normaliza a la que usa la base.
+    _NORM = {
+        "timelineUpdate": "TimelineUpdate",
+        "userContext": "UserContextUpdate",
+        "drivingInsight": "DrivingInsights",
+        "crash": "VehicleCrash",
+        "phoneUsageEvents": "DrivingInsightsPhoneEvents",
+        "harshDrivingEvents": "DrivingInsightsHarshEvents",
+        "speedingEvents": "DrivingInsightsSpeedingEvents",
+        "callWhileMovingEvents": "DrivingInsightsCallEvents",
+    }
+
+    _lineas = pd.read_sql(f"""
+        SELECT JSON_VALUE(l.value,'$.entry.fase') AS fase,
+               JSON_VALUE(l.value,'$.entry.tipo') AS tipo,
+               JSON_VALUE(l.value,'$.entry.ts')   AS ts
         FROM SentianceEventos e CROSS APPLY OPENJSON(e.json,'$.lineas') l
         WHERE e.tipo = 'AuditLogBatch' AND e.sentianceid = '{sid}'
-          AND JSON_VALUE(l.value,'$.entry.fase') = 'TX_OK'
-          AND JSON_VALUE(l.value,'$.entry.tipo') NOT IN ('AuditLogBatch','-')
+          AND JSON_VALUE(l.value,'$.entry.fase') IN ('RX','RX_QUERY','TX_OK')
+          AND JSON_VALUE(l.value,'$.entry.tipo') NOT IN ('AuditLogBatch','-','init')
           AND JSON_VALUE(l.value,'$.entry.ts') >= '{_desde_p}'
           AND JSON_VALUE(l.value,'$.entry.ts') <= '{_hasta_p}'
     """, engine)
 
-    _base = pd.read_sql(f"""
-        SELECT tipo, fechahora AS momento
+    _filas_base = pd.read_sql(f"""
+        SELECT tipo, app_version AS version, fechahora, created_at
         FROM SentianceEventos
         WHERE sentianceid = '{sid}'
           AND tipo NOT IN ('AuditLogBatch','SDKStatus')
           AND fechahora >= '{_desde_p}' AND fechahora <= '{_hasta_p}'
     """, engine)
 
-    for _d in (_log, _base):
-        _d["momento"] = pd.to_datetime(_d["momento"])
-
-    _renglones = []
-    for _t in sorted(set(_log["tipo"]) | set(_base["tipo"])):
-        _libres = sorted(_base[_base["tipo"] == _t]["momento"])
-        for _m in sorted(_log[_log["tipo"] == _t]["momento"]):
-            _cerca = [x for x in _libres if abs(x - _m) <= _TOL_P]
-            if _cerca:
-                _par = min(_cerca, key=lambda x: abs(x - _m))
-                _libres.remove(_par)
-                _renglones.append({"tipo": _t, "_o": _m, "en el log": _m, "en la base": _par})
-            else:
-                _renglones.append({"tipo": _t, "_o": _m, "en el log": _m, "en la base": None})
-        for _x in _libres:
-            _renglones.append({"tipo": _t, "_o": _x, "en el log": None, "en la base": _x})
-
-    _grilla = pd.DataFrame(_renglones)
-
     mo.stop(
-        _grilla.empty,
+        _lineas.empty and _filas_base.empty,
         mo.md("No hay eventos ni líneas de log para este dispositivo en el rango.").callout(kind="warn"),
     )
 
-    _grilla = _grilla.sort_values("_o").drop(columns="_o").reset_index(drop=True)
+    _lineas["ts"] = pd.to_datetime(_lineas["ts"])
+    _lineas["tipo"] = _lineas["tipo"].map(lambda t: _NORM.get(t, t))
+    for _c in ("fechahora", "created_at"):
+        _filas_base[_c] = pd.to_datetime(_filas_base[_c])
+
+    # Cada marca del log se ancla POR SEPARADO a la fila de la base, cada una
+    # contra la marca que mide su mismo instante. NO se liga `RX` con `TX_OK`
+    # entre sí: cuando el evento pasa por la cola, las dos líneas caen en
+    # archivos de log distintos y cualquier apareo por orden dentro del archivo
+    # las desalinea. Verificado el 2026-09-14: ligándolas así, el `RX` de las
+    # 15:06:35 terminaba en el renglón cuyo `fechahora` era 15:07:03.
+    _rx_por_tipo = {
+        _t: sorted(_g["ts"])
+        for _t, _g in _lineas[_lineas["fase"].isin(["RX", "RX_QUERY"])].groupby("tipo")
+    }
+    _tx_por_tipo = {
+        _t: sorted(_g["ts"])
+        for _t, _g in _lineas[_lineas["fase"] == "TX_OK"].groupby("tipo")
+    }
+    _n_rx = sum(len(_v) for _v in _rx_por_tipo.values())
+    _n_tx = sum(len(_v) for _v in _tx_por_tipo.values())
+
+    def _tomar(_libres, _ancla):
+        """Saca de `_libres` la marca más cercana a `_ancla`, si hay alguna dentro
+        de la tolerancia. Cada marca del log se usa una sola vez."""
+        if _ancla is None or pd.isna(_ancla):
+            return None
+        _cerca = [_x for _x in _libres if abs(_x - _ancla) <= _TOL_M]
+        if not _cerca:
+            return None
+        _elegida = min(_cerca, key=lambda _x: abs(_x - _ancla))
+        _libres.remove(_elegida)
+        return _elegida
+
+    _renglones = []
+    for _t in sorted(set(_filas_base["tipo"]) | set(_rx_por_tipo) | set(_tx_por_tipo)):
+        _rxs = _rx_por_tipo.get(_t, [])
+        _txs = _tx_por_tipo.get(_t, [])
+        for _c_at, _f_h, _ver in sorted(
+            _filas_base[_filas_base["tipo"] == _t][["created_at", "fechahora", "version"]]
+            .itertuples(index=False, name=None),
+            key=lambda _r: _r[1],
+        ):
+            _renglones.append({
+                "evento": _t, "version": _ver,
+                "RX (log)": _tomar(_rxs, _f_h), "fechahora": _f_h,
+                "TX (log)": _tomar(_txs, _c_at), "created_at": _c_at,
+            })
+        # Lo que queda suelto en el log no tiene fila que lo reclame.
+        for _r in _rxs:
+            _renglones.append({"evento": _t, "version": None,
+                               "RX (log)": _r, "fechahora": None,
+                               "TX (log)": None, "created_at": None})
+        for _x in _txs:
+            _renglones.append({"evento": _t, "version": None,
+                               "RX (log)": None, "fechahora": None,
+                               "TX (log)": _x, "created_at": None})
+
+    _g = pd.DataFrame(_renglones)
+    _g["_o"] = _g["fechahora"].fillna(_g["RX (log)"]).fillna(_g["created_at"])
+    _g = _g.sort_values("_o").drop(columns="_o").reset_index(drop=True)
+
     # El guión largo se lee mejor que una celda vacía: deja ver de un vistazo de
     # qué lado falta el dato.
-    _grilla["en el log"] = _grilla["en el log"].apply(
-        lambda t: "—" if pd.isna(t) else t.strftime("%m-%d %H:%M:%S.") + f"{t.microsecond // 1000:03d}"
-    )
-    _grilla["en la base"] = _grilla["en la base"].apply(
-        lambda t: "—" if pd.isna(t) else t.strftime("%m-%d %H:%M:%S")
-    )
+    def _hora(_t, _ms):
+        if _t is None or pd.isna(_t):
+            return "—"
+        return _t.strftime("%m-%d %H:%M:%S") + (f".{_t.microsecond // 1000:03d}" if _ms else "")
 
-    _solo_log = int((_grilla["en la base"] == "—").sum())
-    _solo_base = int((_grilla["en el log"] == "—").sum())
-    _pares = len(_grilla) - _solo_log - _solo_base
+    for _col, _ms in (("RX (log)", True), ("fechahora", False),
+                      ("TX (log)", True), ("created_at", False)):
+        _g[_col] = _g[_col].apply(lambda _t, _m=_ms: _hora(_t, _m))
+    _g["version"] = _g["version"].fillna("—")
+    _g = _g[["evento", "version", "RX (log)", "fechahora", "TX (log)", "created_at"]]
+
+    _sin_fila = int((_g["fechahora"] == "—").sum())
+    _sin_rx = int((_g["RX (log)"] == "—").sum())
+    _sin_tx = int((_g["TX (log)"] == "—").sum())
+
+    # Si en el rango convive más de una versión, se dice cuántos eventos aporta
+    # cada una. Es el dato que explica un bloque entero sin log sin que haya
+    # ninguna falla: una versión que no lo escribe.
+    _por_version = _g["version"].value_counts()
+    _aviso = (
+        [
+            mo.md(
+                "**En este rango el teléfono corrió más de una versión:** "
+                + " · ".join(f"`{_v}` {_n} eventos" for _v, _n in _por_version.items())
+                + ". Una versión que no escribe log produce renglones sin marcas "
+                "del log que no son pérdidas."
+            ).callout(kind="warn")
+        ]
+        if len(_por_version) > 1
+        else []
+    )
 
     mo.vstack(
         [
             mo.md(f"### Evento por evento — `{sid}`"),
             mo.md(
-                f"**{_pares}** en las dos fuentes · **{_solo_base}** solo en la base · "
-                f"**{_solo_log}** solo en el log"
+                f"**{len(_g)}** renglones · **{len(_filas_base)}** filas en la base · "
+                f"**{_n_rx}** líneas `RX` · **{_n_tx}** líneas `TX_OK`  \n"
+                f"Sin fila en la base: **{_sin_fila}** · sin `RX`: **{_sin_rx}** · "
+                f"sin `TX`: **{_sin_tx}**"
             ).callout(kind="neutral"),
-            mo.ui.table(_grilla, selection=None, page_size=50),
+            *_aviso,
+            mo.ui.table(_g, selection=None, page_size=50),
         ]
     )
     return
