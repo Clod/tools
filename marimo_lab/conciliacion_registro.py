@@ -41,10 +41,7 @@
 
 import marimo
 
-__generated_with = "0.23.8"
-
-# `width="full"` hace que el contenido ocupe todo el ancho de la ventana. Sirve
-# acá porque las tablas tienen varias columnas.
+__generated_with = "0.24.2"
 app = marimo.App(width="full")
 
 
@@ -85,76 +82,72 @@ def _():
 def _(mo):
     # mo.md() convierte texto markdown en salida formateada. Al ser la última
     # expresión de la celda, se muestra sin necesidad de print().
-    mo.md(
-        """
-        # Conciliación del registro de diagnóstico
+    mo.md("""
+    # Conciliación del registro de diagnóstico
 
-        Compara lo que los teléfonos **dicen** haber entregado contra lo que
-        **quedó guardado** en la base.
-        """
-    )
+    Compara lo que los teléfonos **dicen** haber entregado contra lo que
+    **quedó guardado** en la base.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        """
-        ## Qué se está conciliando
+    mo.md("""
+    ## Qué se está conciliando
 
-        La app escribe un **registro de diagnóstico** en el propio teléfono: una
-        línea por cada cosa que ocurre adentro. Cada tanto ese archivo se manda
-        al backend como una fila más de `SentianceEventos`, con `tipo` igual a
-        `AuditLogBatch`, y con todas sus líneas adentro del campo `json`.
+    La app escribe un **registro de diagnóstico** en el propio teléfono: una
+    línea por cada cosa que ocurre adentro. Cada tanto ese archivo se manda
+    al backend como una fila más de `SentianceEventos`, con `tipo` igual a
+    `AuditLogBatch`, y con todas sus líneas adentro del campo `json`.
 
-        O sea que en esa tabla conviven dos cosas distintas:
+    O sea que en esa tabla conviven dos cosas distintas:
 
-        - **Los eventos de telemetría**: un viaje, un choque, un cambio de
-          contexto. Una fila por evento.
-        - **El registro de diagnóstico**: filas que contienen, cada una, decenas
-          o cientos de líneas que describen lo que el teléfono hizo.
+    - **Los eventos de telemetría**: un viaje, un choque, un cambio de
+      contexto. Una fila por evento.
+    - **El registro de diagnóstico**: filas que contienen, cada una, decenas
+      o cientos de líneas que describen lo que el teléfono hizo.
 
-        Conciliar es cruzar las dos. Si el registro dice "entregué este viaje" y
-        no hay fila de viaje, algo se perdió entre el teléfono y la base.
+    Conciliar es cruzar las dos. Si el registro dice "entregué este viaje" y
+    no hay fila de viaje, algo se perdió entre el teléfono y la base.
 
-        ### Las fases de una línea del registro
+    ### Las fases de una línea del registro
 
-        Cada línea tiene una `fase` que dice en qué momento del recorrido está
-        el evento:
+    Cada línea tiene una `fase` que dice en qué momento del recorrido está
+    el evento:
 
-        | Fase | Quién escribe la línea | Significa |
-        |---|---|---|
-        | `RX` | la fachada | La fachada recibió el evento del SDK de Sentiance. |
-        | `RX_APP` | la app | La app recibió de la fachada **ese mismo evento**. |
-        | `TX_IN` | el cliente de eventos | El cliente de eventos tomó el evento para enviarlo. |
-        | `TX_OK` | el cliente de eventos | El backend confirmó que lo recibió. |
-        | `TX_FAIL` | el cliente de eventos | El envío falló y el evento quedó en la cola. |
-        | `TX_DROP` | el cliente de eventos | El evento se descartó sin entregarse. |
-        | `FLUSH_START` / `FLUSH_END` | el cliente de eventos | Ciclo de vaciado de la cola. |
+    | Fase | Quién escribe la línea | Significa |
+    |---|---|---|
+    | `RX` | la fachada | La fachada recibió el evento del SDK de Sentiance. |
+    | `RX_APP` | la app | La app recibió de la fachada **ese mismo evento**. |
+    | `TX_IN` | el cliente de eventos | El cliente de eventos tomó el evento para enviarlo. |
+    | `TX_OK` | el cliente de eventos | El backend confirmó que lo recibió. |
+    | `TX_FAIL` | el cliente de eventos | El envío falló y el evento quedó en la cola. |
+    | `TX_DROP` | el cliente de eventos | El evento se descartó sin entregarse. |
+    | `FLUSH_START` / `FLUSH_END` | el cliente de eventos | Ciclo de vaciado de la cola. |
 
-        ### Por qué un evento recibido escribe dos líneas
+    ### Por qué un evento recibido escribe dos líneas
 
-        `RX` y `RX_APP` describen la misma recepción anotada dos veces, y las
-        dos líneas existen a propósito.
+    `RX` y `RX_APP` describen la misma recepción anotada dos veces, y las
+    dos líneas existen a propósito.
 
-        Un evento del SDK de Sentiance llega primero a la fachada
-        `@victa/telematics-facade`, que escribe `RX`. La fachada se lo pasa
-        entonces al manejador que la app registró, y ese manejador escribe
-        `RX_APP` antes de mandar el evento. El primer emisor es la librería, el
-        segundo es `src/services/telematics.ts` de la app.
+    Un evento del SDK de Sentiance llega primero a la fachada
+    `@victa/telematics-facade`, que escribe `RX`. La fachada se lo pasa
+    entonces al manejador que la app registró, y ese manejador escribe
+    `RX_APP` antes de mandar el evento. El primer emisor es la librería, el
+    segundo es `src/services/telematics.ts` de la app.
 
-        La consecuencia práctica: **contar `RX` y `RX_APP` juntas da el doble de
-        eventos recibidos que los eventos recibidos reales.** Hay que contar una
-        sola de las dos.
+    La consecuencia práctica: **contar `RX` y `RX_APP` juntas da el doble de
+    eventos recibidos que los eventos recibidos reales.** Hay que contar una
+    sola de las dos.
 
-        Hasta el 2026-09-05 las dos líneas usaban la fase `RX`, y para
-        distinguirlas había que mirar si la línea traía o no el campo `ts`. Los
-        registros anteriores a esa fecha siguen necesitando ese criterio.
+    Hasta el 2026-09-05 las dos líneas usaban la fase `RX`, y para
+    distinguirlas había que mirar si la línea traía o no el campo `ts`. Los
+    registros anteriores a esa fecha siguen necesitando ese criterio.
 
-        La conciliación se apoya en `TX_OK`: es la declaración de entrega, y a
-        cada una debería corresponderle una fila guardada.
-        """
-    )
+    La conciliación se apoya en `TX_OK`: es la declaración de entrega, y a
+    cada una debería corresponderle una fila guardada.
+    """)
     return
 
 
@@ -221,7 +214,6 @@ def _(mo, os, sqlalchemy):
                 """
             ).callout(kind="danger"),
         )
-
     return (engine,)
 
 
@@ -471,6 +463,109 @@ def _(detalle, mo, tabla_flota):
         ]
     )
     return (sid,)
+
+
+@app.cell(hide_code=True)
+def _(desde, engine, hasta, mo, pd, sid):
+    # =========================================================================
+    # LAS DOS LISTAS COMPLETAS, UNA AL LADO DE LA OTRA
+    # =========================================================================
+    # La tabla anterior da números por tipo de evento. Esta muestra los eventos
+    # uno por uno, con las dos fuentes en columnas contiguas: la hora que anotó
+    # el log del teléfono y la hora que quedó en la fila de la base.
+    #
+    # POR QUÉ LAS DOS LISTAS COMPLETAS Y NO SOLO LAS DIFERENCIAS
+    # ----------------------------------------------------------
+    # Mostrando solo lo que no cuadra se pierden los denominadores, y sobre todo
+    # se pierde la FORMA de los huecos. Con las dos listas enteras se ve que los
+    # eventos sin log no están salpicados sino agrupados en bloques contiguos
+    # —tramos cuyo archivo de log no llegó— y que los renglones sueltos caen en
+    # los BORDES de cada ráfaga de actividad, que es donde el apareo por tiempo
+    # se queda sin pareja dentro de la tolerancia.
+    #
+    # EL APAREO
+    # ---------
+    # Mismo criterio que la celda siguiente: por tipo de evento y cercanía en el
+    # tiempo, con 5 segundos de tolerancia, y cada fila de la base se consume una
+    # sola vez. La tolerancia es necesaria porque el log guarda milésimas y la
+    # columna `fechahora` de la base trunca a segundos.
+    #
+    # Medido el 2026-09-14 sobre 6aa061750c376556e45ffee4: el desfasaje entre las
+    # dos marcas va de -3,4 a +4,0 segundos, con mediana -1,0. O sea que el
+    # apareo trabaja cerca del límite de su tolerancia, y por eso los bordes de
+    # cada ráfaga quedan sin pareja aunque el evento esté en las dos fuentes.
+    _desde_p = desde.value.strftime("%Y-%m-%d %H:%M:%S")
+    _hasta_p = hasta.value.strftime("%Y-%m-%d %H:%M:%S")
+    _TOL_P = pd.Timedelta(seconds=5)
+
+    _log = pd.read_sql(f"""
+        SELECT JSON_VALUE(l.value,'$.entry.tipo') AS tipo,
+               JSON_VALUE(l.value,'$.entry.ts')   AS momento
+        FROM SentianceEventos e CROSS APPLY OPENJSON(e.json,'$.lineas') l
+        WHERE e.tipo = 'AuditLogBatch' AND e.sentianceid = '{sid}'
+          AND JSON_VALUE(l.value,'$.entry.fase') = 'TX_OK'
+          AND JSON_VALUE(l.value,'$.entry.tipo') NOT IN ('AuditLogBatch','-')
+          AND JSON_VALUE(l.value,'$.entry.ts') >= '{_desde_p}'
+          AND JSON_VALUE(l.value,'$.entry.ts') <= '{_hasta_p}'
+    """, engine)
+
+    _base = pd.read_sql(f"""
+        SELECT tipo, fechahora AS momento
+        FROM SentianceEventos
+        WHERE sentianceid = '{sid}'
+          AND tipo NOT IN ('AuditLogBatch','SDKStatus')
+          AND fechahora >= '{_desde_p}' AND fechahora <= '{_hasta_p}'
+    """, engine)
+
+    for _d in (_log, _base):
+        _d["momento"] = pd.to_datetime(_d["momento"])
+
+    _renglones = []
+    for _t in sorted(set(_log["tipo"]) | set(_base["tipo"])):
+        _libres = sorted(_base[_base["tipo"] == _t]["momento"])
+        for _m in sorted(_log[_log["tipo"] == _t]["momento"]):
+            _cerca = [x for x in _libres if abs(x - _m) <= _TOL_P]
+            if _cerca:
+                _par = min(_cerca, key=lambda x: abs(x - _m))
+                _libres.remove(_par)
+                _renglones.append({"tipo": _t, "_o": _m, "en el log": _m, "en la base": _par})
+            else:
+                _renglones.append({"tipo": _t, "_o": _m, "en el log": _m, "en la base": None})
+        for _x in _libres:
+            _renglones.append({"tipo": _t, "_o": _x, "en el log": None, "en la base": _x})
+
+    _grilla = pd.DataFrame(_renglones)
+
+    mo.stop(
+        _grilla.empty,
+        mo.md("No hay eventos ni líneas de log para este dispositivo en el rango.").callout(kind="warn"),
+    )
+
+    _grilla = _grilla.sort_values("_o").drop(columns="_o").reset_index(drop=True)
+    # El guión largo se lee mejor que una celda vacía: deja ver de un vistazo de
+    # qué lado falta el dato.
+    _grilla["en el log"] = _grilla["en el log"].apply(
+        lambda t: "—" if pd.isna(t) else t.strftime("%m-%d %H:%M:%S.") + f"{t.microsecond // 1000:03d}"
+    )
+    _grilla["en la base"] = _grilla["en la base"].apply(
+        lambda t: "—" if pd.isna(t) else t.strftime("%m-%d %H:%M:%S")
+    )
+
+    _solo_log = int((_grilla["en la base"] == "—").sum())
+    _solo_base = int((_grilla["en el log"] == "—").sum())
+    _pares = len(_grilla) - _solo_log - _solo_base
+
+    mo.vstack(
+        [
+            mo.md(f"### Evento por evento — `{sid}`"),
+            mo.md(
+                f"**{_pares}** en las dos fuentes · **{_solo_base}** solo en la base · "
+                f"**{_solo_log}** solo en el log"
+            ).callout(kind="neutral"),
+            mo.ui.table(_grilla, selection=None, page_size=50),
+        ]
+    )
+    return
 
 
 @app.cell(hide_code=True)
